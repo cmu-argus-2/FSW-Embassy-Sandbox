@@ -62,7 +62,7 @@ async fn main(spawner: Spawner) {
     info!("finished scan");
     loop {
         info!("looping...");
-        Timer::after_secs(5).await;
+        Timer::after_secs(1).await;
     }
 }
 

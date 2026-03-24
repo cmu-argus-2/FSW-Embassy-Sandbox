@@ -46,8 +46,11 @@ async fn main(spawner: Spawner) {
     let mut led = Output::new(p.PIN_42, Level::Low);
     led.set_high();
 
+    let sda = p.PIN_46;
+    let scl = p.PIN_47;
+
     // Shared I2C bus
-    let i2c = I2c::new_async(p.I2C1, p.PIN_47, p.PIN_46, Irqs, i2c::Config::default());
+    let i2c = I2c::new_async(p.I2C1, scl, sda, Irqs, i2c::Config::default());
     static I2C_BUS: StaticCell<I2c1Bus> = StaticCell::new();
     let i2c_bus = I2C_BUS.init(Mutex::new(i2c));
 
@@ -77,7 +80,7 @@ async fn defmtusb_wrapper(usb: Peri<'static, USB>) {
 }
 
 #[embassy_executor::task]
-async fn i2c_task_a(i2c_bus: &'static I2c1Bus) {
+async fn adm1176_task(i2c_bus: &'static I2c1Bus) {
     let i2c_dev = I2cDevice::new(i2c_bus);
     let mut sensor = adm1176::new(i2c_dev, 0x40);
     sensor.config(&["V_CONT", "I_CONT"]).await;
