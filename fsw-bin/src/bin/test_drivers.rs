@@ -17,6 +17,9 @@ use embassy_time::Timer;
 use static_cell::StaticCell;
 use {panic_probe as _};
 
+use vl53l4cd_ulp::VL53L4cd;
+use vl53l4cd_ulp::Error;
+
 use rtt_target::rtt_init_print;
 
 //use package name given in Cargo.toml
