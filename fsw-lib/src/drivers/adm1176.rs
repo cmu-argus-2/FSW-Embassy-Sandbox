@@ -76,16 +76,12 @@ impl<I2C: I2c> ADM1176<I2C> {
 
     pub async fn read_voltage_current(&mut self) -> Result<(f32, f32), Error<I2C::Error>> {
         let mut buf = [0u8; 3];
-        match self.i2c.read(self.addr, &mut buf).await.map_err(Error::I2c) {
-            Ok(_) => {
-                let raw_voltage = (((buf[0] as u16) << 8) | ((buf[2] & 0xF0) as u16)) >> 4;
-                let raw_current = ((buf[1] << 4) | (buf[2] & 0x0F)) as u16;
-                let voltage = (self.v_fs_over_res) * raw_voltage as f32;  // volts
-                let current = ((self.i_fs_over_res) * raw_current as f32) / self.sense_resistor;  // amperes
-                Ok((voltage, current))
-            },
-            Err(e) => Err(e)
-        }
+        self.i2c.read(self.addr, &mut buf).await.map_err(Error::I2c)?;
+        let raw_voltage = (((buf[0] as u16) << 8) | ((buf[2] & 0xF0) as u16)) >> 4;
+        let raw_current = ((buf[1] << 4) | (buf[2] & 0x0F)) as u16;
+        let voltage = (self.v_fs_over_res) * raw_voltage as f32;  // volts
+        let current = ((self.i_fs_over_res) * raw_current as f32) / self.sense_resistor;  // amperes
+        Ok((voltage, current))
     }
 
     async fn turn_off(&mut self) -> Result<(), Error<I2C::Error>> {
@@ -108,10 +104,8 @@ impl<I2C: I2c> ADM1176<I2C> {
     }
 
     pub async fn device_on(&mut self) -> Result<bool, Error<I2C::Error>> {
-        match self.status().await {
-            Ok(status) => Ok((status & STATUS_OFF_STATUS) != STATUS_OFF_STATUS),
-            Err(e) => Err(e)
-        }
+        let status = self.status().await?;
+        Ok((status & STATUS_OFF_STATUS) != STATUS_OFF_STATUS)
     }
 
     pub fn overcurrent_level(&self) -> u8 {
