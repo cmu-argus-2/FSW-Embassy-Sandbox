@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 embedded-hal-async = "1.0"
+defmt = "1.0.1"
