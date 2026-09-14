@@ -23,9 +23,6 @@ const CONTROL_REG_ADDR: u8 = 0x83;
 const CONTROL_SWOFF: u8 = 0x1 << 0;
 
 #[derive(Debug, defmt::Format)]
-pub enum Error<E> {
-    I2c(E),
-}
 
 pub struct ADM1176<I2C: I2c> {
     i2c: I2C,
@@ -52,7 +49,8 @@ impl<I2C: I2c> ADM1176<I2C> {
         }
     }
 
-    pub async fn config(&mut self, values: &[&str]) -> Result<(), Error<I2C::Error>> {
+    //TODO: replace string API with enum so wrong configs are compile time errors instead of silently failing at runtime
+    pub async fn config(&mut self, values: &[&str]) -> Result<(), I2C::Error> {
         const V_CONT_BIT: u8 = 0x1 << 0;
         const V_ONCE_BIT: u8 = 0x1 << 1;
         const I_CONT_BIT: u8 = 0x1 << 2;
@@ -70,13 +68,13 @@ impl<I2C: I2c> ADM1176<I2C> {
                 _ => {}
             }
         }
-        self.i2c.write(self.addr, &[config]).await.map_err(Error::I2c)?;
+        self.i2c.write(self.addr, &[config]).await?;
         Ok(())
     }
 
-    pub async fn read_voltage_current(&mut self) -> Result<(f32, f32), Error<I2C::Error>> {
+    pub async fn read_voltage_current(&mut self) -> Result<(f32, f32), I2C::Error> {
         let mut buf = [0u8; 3];
-        self.i2c.read(self.addr, &mut buf).await.map_err(Error::I2c)?;
+        self.i2c.read(self.addr, &mut buf).await?;
         let raw_voltage = (((buf[0] as u16) << 8) | ((buf[2] & 0xF0) as u16)) >> 4;
         let raw_current = ((buf[1] << 4) | (buf[2] & 0x0F)) as u16;
         let voltage = (self.v_fs_over_res) * raw_voltage as f32;  // volts
@@ -84,18 +82,18 @@ impl<I2C: I2c> ADM1176<I2C> {
         Ok((voltage, current))
     }
 
-    async fn turn_off(&mut self) -> Result<(), Error<I2C::Error>> {
+    async fn turn_off(&mut self) -> Result<(), I2C::Error> {
         let mut off: [u8;2] = [CONTROL_REG_ADDR, 0x04 | CONTROL_SWOFF];
-        self.i2c.write(self.addr, &mut off).await.map_err(Error::I2c)
+        self.i2c.write(self.addr, &mut off).await
     }
 
-    async fn turn_on(&mut self) -> Result<(), Error<I2C::Error>> {
+    async fn turn_on(&mut self) -> Result<(), I2C::Error> {
         let mut on: [u8;2] = [CONTROL_REG_ADDR, 0x04 & !CONTROL_SWOFF];
-        self.i2c.write(self.addr, &mut on).await.map_err(Error::I2c)?;
+        self.i2c.write(self.addr, &mut on).await?;
         self.config(&["V_CONT", "I_CONT"]).await
     }
 
-    pub async fn set_device_on(&mut self, on: bool) -> Result<(), Error<I2C::Error>> {
+    pub async fn set_device_on(&mut self, on: bool) -> Result<(), I2C::Error> {
         if on {
             self.turn_on().await
         } else {
@@ -103,7 +101,7 @@ impl<I2C: I2c> ADM1176<I2C> {
         }
     }
 
-    pub async fn device_on(&mut self) -> Result<bool, Error<I2C::Error>> {
+    pub async fn device_on(&mut self) -> Result<bool, I2C::Error> {
         let status = self.status().await?;
         Ok((status & STATUS_OFF_STATUS) != STATUS_OFF_STATUS)
     }
@@ -112,25 +110,25 @@ impl<I2C: I2c> ADM1176<I2C> {
         self.overcurrent_level
     }
 
-    pub async fn set_overcurrent_level(&mut self, value: u8) -> Result<(), Error<I2C::Error>> {
+    pub async fn set_overcurrent_level(&mut self, value: u8) -> Result<(), I2C::Error> {
         let mut cmd: [u8;2] = [ALERT_EN_EXT_REG_ADDR, 0x04 | ALERT_EN_EN_ADC_OC4];
-        self.i2c.write(self.addr, &mut cmd).await.map_err(Error::I2c)?;
+        self.i2c.write(self.addr, &mut cmd).await?;
         cmd = [ALERT_TH_EN_REG_ADDR, value];
-        let res = self.i2c.write(self.addr, &mut cmd).await.map_err(Error::I2c)?;
+        let res = self.i2c.write(self.addr, &mut cmd).await?;
         self.overcurrent_level = value;
         Ok(res)
     }
 
-    pub async fn clear(&mut self) -> Result<(), Error<I2C::Error>> {
+    pub async fn clear(&mut self) -> Result<(), I2C::Error> {
         let mut cmd: [u8;2] = [ALERT_EN_EXT_REG_ADDR, 0x04 | ALERT_EN_CLEAR];
-        self.i2c.write(self.addr, &mut cmd).await.map_err(Error::I2c)
+        self.i2c.write(self.addr, &mut cmd).await
     }
 
-    pub async fn status(&mut self) -> Result<(u8), Error<I2C::Error>> {
-        self.i2c.write(self.addr, &[STATUS_READ]).await.map_err(Error::I2c)?;
+    pub async fn status(&mut self) -> Result<u8, I2C::Error> {
+        self.i2c.write(self.addr, &[STATUS_READ]).await?;
         let mut status_buf = [0u8; 1];
-        self.i2c.read(self.addr, &mut status_buf).await.map_err(Error::I2c)?;
-        self.i2c.write(self.addr, &[0x00 & !STATUS_READ]).await.map_err(Error::I2c)?;
+        self.i2c.read(self.addr, &mut status_buf).await?;
+        self.i2c.write(self.addr, &[0x00 & !STATUS_READ]).await?;
         Ok(status_buf[0])
     }
 }
