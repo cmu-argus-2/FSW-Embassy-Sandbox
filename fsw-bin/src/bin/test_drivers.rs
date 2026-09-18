@@ -3,7 +3,7 @@
 #![no_std]
 #![no_main]
 
-use defmt::{info, error};
+use defmt::{error, info};
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Level, Output};
@@ -14,8 +14,8 @@ use embassy_rp::{Peri, bind_interrupts};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::Timer;
+use panic_probe as _;
 use static_cell::StaticCell;
-use {panic_probe as _};
 
 use rtt_target::rtt_init_print;
 
@@ -54,7 +54,6 @@ async fn main(spawner: Spawner) {
     //spawn adm1176 driver task
     spawner.spawn(i2c_task_a(i2c_bus));
 
-
     loop {
         info!("looping...");
         Timer::after_secs(5).await;
@@ -91,7 +90,7 @@ async fn i2c_task_a(i2c_bus: &'static I2c1Bus) {
                 error!("{}", e);
             }
         }
-        
+
         Timer::after_secs(1).await;
     }
 }

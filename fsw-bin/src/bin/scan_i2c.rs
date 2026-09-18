@@ -10,7 +10,7 @@ use embassy_rp::i2c::{self, I2c, InterruptHandler};
 use embassy_rp::peripherals::{I2C1, USB};
 use embassy_rp::{Peri, bind_interrupts};
 use embassy_time::Timer;
-use {panic_probe as _};
+use panic_probe as _;
 
 use rtt_target::rtt_init_print;
 
@@ -44,18 +44,22 @@ async fn main(spawner: Spawner) {
     let mut buf = [0u8];
     for address in 0..=127u8 {
         // i2c.write returns OK on every address, so use i2c.read to detect device
-        match i2c.read_async(address, &mut buf).await {
+        match i2c.write_read_async(address, buf, &mut buf).await {
             Ok(res) => {
-                info!("Found device at address: {:#X} with result: {:?}", address, res);
-            },
+                info!(
+                    "Found device at address: {:#X} with result: {:?}",
+                    address, res
+                );
+            }
             Err(_) => {
                 // info!("No device at address: {:#X}\r\n", address);
                 //address not found, do nothing
-            },
+            }
         }
         //delay needed to prevent overloading i2c bus
         Timer::after_millis(10).await;
     }
+    info!("finished scan");
     loop {
         info!("looping...");
         Timer::after_secs(5).await;
