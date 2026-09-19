@@ -34,8 +34,6 @@ pub struct ADM1176<I2C: I2c> {
     i_fs_over_res: f32,
 }
 
-
-
 impl<I2C: I2c> ADM1176<I2C> {
     pub fn new(i2c: I2C, addr: u8) -> Self {
         Self {
@@ -56,8 +54,8 @@ impl<I2C: I2c> ADM1176<I2C> {
         const I_CONT_BIT: u8 = 0x1 << 2;
         const I_ONCE_BIT: u8 = 0x1 << 3;
         const V_RANGE_BIT: u8 = 0x1 << 4;
-        
-        let mut config:u8 = 0;
+
+        let mut config: u8 = 0;
         for value in values.iter() {
             match *value {
                 "V_CONT" => config |= V_CONT_BIT,
@@ -77,18 +75,18 @@ impl<I2C: I2c> ADM1176<I2C> {
         self.i2c.read(self.addr, &mut buf).await?;
         let raw_voltage = (((buf[0] as u16) << 8) | ((buf[2] & 0xF0) as u16)) >> 4;
         let raw_current = ((buf[1] << 4) | (buf[2] & 0x0F)) as u16;
-        let voltage = (self.v_fs_over_res) * raw_voltage as f32;  // volts
-        let current = ((self.i_fs_over_res) * raw_current as f32) / self.sense_resistor;  // amperes
+        let voltage = (self.v_fs_over_res) * raw_voltage as f32; // volts
+        let current = ((self.i_fs_over_res) * raw_current as f32) / self.sense_resistor; // amperes
         Ok((voltage, current))
     }
 
     async fn turn_off(&mut self) -> Result<(), I2C::Error> {
-        let mut off: [u8;2] = [CONTROL_REG_ADDR, 0x04 | CONTROL_SWOFF];
+        let mut off: [u8; 2] = [CONTROL_REG_ADDR, 0x04 | CONTROL_SWOFF];
         self.i2c.write(self.addr, &mut off).await
     }
 
     async fn turn_on(&mut self) -> Result<(), I2C::Error> {
-        let mut on: [u8;2] = [CONTROL_REG_ADDR, 0x04 & !CONTROL_SWOFF];
+        let mut on: [u8; 2] = [CONTROL_REG_ADDR, 0x04 & !CONTROL_SWOFF];
         self.i2c.write(self.addr, &mut on).await?;
         self.config(&["V_CONT", "I_CONT"]).await
     }
@@ -111,7 +109,7 @@ impl<I2C: I2c> ADM1176<I2C> {
     }
 
     pub async fn set_overcurrent_level(&mut self, value: u8) -> Result<(), I2C::Error> {
-        let mut cmd: [u8;2] = [ALERT_EN_EXT_REG_ADDR, 0x04 | ALERT_EN_EN_ADC_OC4];
+        let mut cmd: [u8; 2] = [ALERT_EN_EXT_REG_ADDR, 0x04 | ALERT_EN_EN_ADC_OC4];
         self.i2c.write(self.addr, &mut cmd).await?;
         cmd = [ALERT_TH_EN_REG_ADDR, value];
         let res = self.i2c.write(self.addr, &mut cmd).await?;
@@ -120,7 +118,7 @@ impl<I2C: I2c> ADM1176<I2C> {
     }
 
     pub async fn clear(&mut self) -> Result<(), I2C::Error> {
-        let mut cmd: [u8;2] = [ALERT_EN_EXT_REG_ADDR, 0x04 | ALERT_EN_CLEAR];
+        let mut cmd: [u8; 2] = [ALERT_EN_EXT_REG_ADDR, 0x04 | ALERT_EN_CLEAR];
         self.i2c.write(self.addr, &mut cmd).await
     }
 
@@ -132,4 +130,3 @@ impl<I2C: I2c> ADM1176<I2C> {
         Ok(status_buf[0])
     }
 }
-
