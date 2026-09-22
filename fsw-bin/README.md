@@ -8,7 +8,7 @@ replace `test_logging` with the filename you want to run.
 
 logging is done through the log.sh script. Usage example:
 ```
-./log.sh target/thumbv8m.main-none-eabihf/debug/test_logging
+./log.sh ../target/thumbv8m.main-none-eabihf/debug/test_logging
 ```
 replace the `test_logging` at the end with the filename you're running.
 
