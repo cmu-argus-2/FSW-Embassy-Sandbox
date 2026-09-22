@@ -1,0 +1,14 @@
+# Keep ModemManager away from the Argus mainboard's USB serial log device.
+# ModemManager probes /dev/ttyACM* devices, which steals bytes from the defmt log
+# and shows up as "device reports readiness to read but returned no data".
+#
+# Install with:
+#   sudo cp 99-argus-no-modemmanager.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# 2e8a is Raspberry Pi (RP2040/RP2350); 1234 is the VID used by the defmt USB logger
+# in fsw-bin (see embassy_usb::Config::new(0x1234, 0x5678)).
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1234", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1234", ENV{ID_MM_DEVICE_IGNORE}="1"
