@@ -1,15 +1,14 @@
 #![no_std]
 #![no_main]
 
-use defmt::{info, error};
+use defmt::{error, info};
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::i2c::{self, I2c, InterruptHandler};
 use embassy_rp::peripherals::{I2C1, USB};
 use embassy_rp::{Peri, bind_interrupts};
 use embassy_time::Timer;
-use {panic_probe as _};
-
+use panic_probe as _;
 
 use fsw_lib::drivers::opt4003::OPT4003;
 
@@ -23,7 +22,7 @@ async fn main(spawner: Spawner) {
     let mut config = embassy_rp::config::Config::default();
     config.clocks = embassy_rp::clocks::ClockConfig::crystal(12_000_000);
     let p = embassy_rp::init(config);
-    
+
     let _ = spawner.spawn(usb_logger_task(p.USB)).unwrap();
     Timer::after_secs(2).await;
 

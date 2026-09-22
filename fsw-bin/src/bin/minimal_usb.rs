@@ -1,46 +1,30 @@
 #![no_std]
 #![no_main]
 
+use defmt::info;
 use embassy_executor::Spawner;
 use embassy_rp::Peri;
 use embassy_rp::bind_interrupts;
-use embassy_rp::gpio::{Level, Output};
-use embassy_rp::i2c::{self, I2c, InterruptHandler};
-use embassy_rp::peripherals::{I2C0, USB};
+use embassy_rp::peripherals::USB;
 use embassy_time::Timer;
-use embedded_hal_async::i2c::I2c as _;
 use panic_probe as _;
 
 bind_interrupts!(struct Irqs {
-    I2C0_IRQ    => InterruptHandler<I2C0>;
     USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<USB>;
 });
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
+    // UNIVERSAL BOOT: Use default clocks (Internal Oscillator)
+    // This works on every board, even without a crystal.
     let p = embassy_rp::init(Default::default());
 
-    // USB Logger Setup
+    // Start USB immediately
     let _ = spawner.spawn(defmtusb_wrapper(p.USB));
-    Timer::after_secs(3).await;
-
-    defmt::info!("--- I2C Bus Scan ---");
-
-    // Power on peripherals
-    let _pwr = Output::new(p.PIN_42, Level::High);
-    Timer::after_millis(500).await;
-
-    let mut i2c = I2c::new_async(p.I2C0, p.PIN_25, p.PIN_24, Irqs, i2c::Config::default());
 
     loop {
-        defmt::info!("Scanning I2C0 (SCL0 = GP25, SDA0 = GP24)...");
-        for addr in 0x08_u8..=0x77 {
-            let mut buf = [0u8; 1];
-            if i2c.read(addr, &mut buf).await.is_ok() {
-                defmt::info!("found 0x{:02X}", addr);
-            }
-        }
-        Timer::after_secs(5).await;
+        info!("--- UNIVERSAL BOOT ALIVE ---");
+        Timer::after_secs(1).await;
     }
 }
 
@@ -49,7 +33,7 @@ async fn defmtusb_wrapper(usb: Peri<'static, USB>) {
     let driver = embassy_rp::usb::Driver::new(usb, Irqs);
     let config = {
         let mut c = embassy_usb::Config::new(0x1234, 0x5678);
-        c.serial_number = Some("defmt");
+        c.serial_number = Some("universal");
         c.max_packet_size_0 = 64;
         c.composite_with_iads = true;
         c.device_class = 0xEF;

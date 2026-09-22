@@ -3,21 +3,19 @@
 #![no_std]
 #![no_main]
 
-use defmt::{info, error};
+use defmt::{error, info};
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::i2c::{self, I2c, InterruptHandler};
 use embassy_rp::peripherals::{I2C1, USB};
+use static_cell::StaticCell;
 
 use embassy_rp::{Peri, bind_interrupts};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::Timer;
-use static_cell::StaticCell;
-use {panic_probe as _};
-
-use rtt_target::rtt_init_print;
+use panic_probe as _;
 
 //use package name given in Cargo.toml
 
@@ -35,9 +33,6 @@ async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
     info!("Here we go!");
 
-    //set up global logger
-    rtt_init_print!();
-
     let _ = spawner.spawn(defmtusb_wrapper(p.USB));
 
     //delay needed to set up usb connection
@@ -54,7 +49,6 @@ async fn main(spawner: Spawner) {
 
     //spawn adm1176 driver task
     let _ = spawner.spawn(i2c_task_a(i2c_bus));
-
 
     loop {
         info!("looping...");
@@ -92,7 +86,7 @@ async fn i2c_task_a(i2c_bus: &'static I2c1Bus) {
                 error!("{}", e);
             }
         }
-        
+
         Timer::after_secs(1).await;
     }
 }
