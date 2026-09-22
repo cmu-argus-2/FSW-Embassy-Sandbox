@@ -7,7 +7,7 @@ use defmt::info;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::i2c::{self, I2c, InterruptHandler};
-use embassy_rp::peripherals::{I2C1, USB};
+use embassy_rp::peripherals::{I2C0, I2C1, USB};
 use embassy_rp::{Peri, bind_interrupts};
 use embassy_time::Timer;
 use {panic_probe as _};
@@ -16,6 +16,7 @@ use rtt_target::rtt_init_print;
 
 bind_interrupts!(struct Irqs {
     I2C1_IRQ => InterruptHandler<I2C1>;
+    I2C0_IRQ => InterruptHandler<I2C0>;
     USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<embassy_rp::peripherals::USB>;
 });
 
@@ -36,15 +37,34 @@ async fn main(spawner: Spawner) {
     //turn on peri
     let mut led = Output::new(p.PIN_42, Level::Low);
     led.set_high();
+    // Allow the switched peripheral supply to settle before I2C access.
+    Timer::after_millis(100).await;
 
     // Shared I2C bus
-    let mut i2c = I2c::new_async(p.I2C1, p.PIN_47, p.PIN_46, Irqs, i2c::Config::default());
+    let mut i2c0 = I2c::new_async(p.I2C0, p.PIN_25, p.PIN_24, Irqs, i2c::Config::default());
+    let mut i2c1 = I2c::new_async(p.I2C1, p.PIN_47, p.PIN_46, Irqs, i2c::Config::default());
 
-    info!("Starting loop");
+    info!("Starting I2C0");
     let mut buf = [0u8];
     for address in 0..=127u8 {
         // i2c.write returns OK on every address, so use i2c.read to detect device
-        match i2c.read_async(address, &mut buf).await {
+        match i2c0.read_async(address, &mut buf).await {
+            Ok(res) => {
+                info!("Found device at address: {:#X} with result: {:?}", address, res);
+            },
+            Err(_) => {
+                // info!("No device at address: {:#X}\r\n", address);
+                //address not found, do nothing
+            },
+        }
+        //delay needed to prevent overloading i2c bus
+        Timer::after_millis(10).await;
+    }
+    info!("Starting I2C1");
+    let mut buf = [0u8];
+    for address in 0..=127u8 {
+        // i2c.write returns OK on every address, so use i2c.read to detect device
+        match i2c1.read_async(address, &mut buf).await {
             Ok(res) => {
                 info!("Found device at address: {:#X} with result: {:?}", address, res);
             },
@@ -75,5 +95,14 @@ async fn defmtusb_wrapper(usb: Peri<'static, USB>) {
         c.device_protocol = 0x01;
         c
     };
-    defmt_embassy_usbserial::run(driver, config).await;
+    let flush_logs = async {
+        loop {
+            Timer::after_millis(250).await;
+            defmt::flush();
+        }
+    };
+    embassy_futures::join::join(
+        defmt_embassy_usbserial::run(driver, config),
+        flush_logs,
+    ).await;
 }
