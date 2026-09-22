@@ -8,7 +8,7 @@ use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::i2c::{self, I2c, InterruptHandler};
-use embassy_rp::peripherals::{I2C1, USB};
+use embassy_rp::peripherals::{I2C0, I2C1, USB};
 
 use embassy_rp::{Peri, bind_interrupts};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
@@ -21,10 +21,13 @@ use rtt_target::rtt_init_print;
 
 //use package name given in Cargo.toml
 use fsw_lib::drivers::adm1176::ADM1176 as adm1176;
+use fsw_lib::drivers::vl53l4cd::VL53L4CD;
 
+type I2c0Bus = Mutex<NoopRawMutex, I2c<'static, I2C0, i2c::Async>>;
 type I2c1Bus = Mutex<NoopRawMutex, I2c<'static, I2C1, i2c::Async>>;
 
 bind_interrupts!(struct Irqs {
+    I2C0_IRQ => InterruptHandler<I2C0>;
     I2C1_IRQ => InterruptHandler<I2C1>;
     USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<embassy_rp::peripherals::USB>;
 });
@@ -45,14 +48,22 @@ async fn main(spawner: Spawner) {
     //turn on peri
     let mut led = Output::new(p.PIN_42, Level::Low);
     led.set_high();
+    // Allow the switched peripheral supply to settle before I2C access.
+    Timer::after_millis(100).await;
 
     let sda = p.PIN_46;
     let scl = p.PIN_47;
 
     // Shared I2C bus
     let i2c = I2c::new_async(p.I2C1, scl, sda, Irqs, i2c::Config::default());
+    
     static I2C_BUS: StaticCell<I2c1Bus> = StaticCell::new();
-    let i2c_bus = I2C_BUS.init(Mutex::new(i2c));
+    let i2c1_bus = I2C_BUS.init(Mutex::new(i2c));
+
+    // Additional shared bus: I2C0, SDA = GPIO24, SCL = GPIO25.
+    let i2c0 = I2c::new_async(p.I2C0, p.PIN_25, p.PIN_24, Irqs, i2c::Config::default());
+    static I2C0_BUS: StaticCell<I2c0Bus> = StaticCell::new();
+    let _i2c0_bus = I2C0_BUS.init(Mutex::new(i2c0));
 
     //spawn adm1176 driver task
     spawner.spawn(i2c_task_a(i2c_bus));
@@ -76,7 +87,18 @@ async fn defmtusb_wrapper(usb: Peri<'static, USB>) {
         c.device_protocol = 0x01;
         c
     };
-    defmt_embassy_usbserial::run(driver, config).await;
+    // This backend otherwise waits for a full buffer before transmitting.
+    // Its USB writer polls every 100 ms; flush less often to let it drain.
+    let flush_logs = async {
+        loop {
+            Timer::after_millis(250).await;
+            defmt::flush();
+        }
+    };
+    embassy_futures::join::join(
+        defmt_embassy_usbserial::run(driver, config),
+        flush_logs,
+    ).await;
 }
 
 #[embassy_executor::task]
