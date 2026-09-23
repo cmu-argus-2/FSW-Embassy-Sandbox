@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 embedded-hal-async = "1.0"
 defmt = "1.0.1"
+chrono = { version = "0.4", default-features = false }
