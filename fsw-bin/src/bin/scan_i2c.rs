@@ -82,6 +82,7 @@ async fn main(spawner: Spawner) {
         //delay needed to prevent overloading i2c bus
         Timer::after_millis(10).await;
     }
+    info!("finished scan");
     loop {
         info!("looping...");
         Timer::after_secs(1).await;

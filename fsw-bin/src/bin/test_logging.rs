@@ -1,11 +1,11 @@
 #![no_std]
 #![no_main]
 
-use defmt::{ info, debug, error };
+use defmt::{debug, error, info};
 use embassy_executor::task;
 use embassy_rp::{Peri, bind_interrupts, peripherals::USB};
-use embassy_time::Timer;
 use embassy_time::Instant;
+use embassy_time::Timer;
 use panic_probe as _;
 
 bind_interrupts!(struct Irqs {

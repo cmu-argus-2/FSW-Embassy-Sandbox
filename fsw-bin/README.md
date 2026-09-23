@@ -8,7 +8,9 @@ replace `test_logging` with the filename you want to run.
 
 logging is done through the log.sh script. Usage example:
 ```
+
 ./log.sh test_drivers
+
 ```
 Replace `test_drivers` with the binary you're running. A binary name resolves to the workspace's `target/thumbv8m.main-none-eabihf/debug/` directory relative to the script, regardless of your working directory. Explicit ELF paths are also supported, including release builds.
 
