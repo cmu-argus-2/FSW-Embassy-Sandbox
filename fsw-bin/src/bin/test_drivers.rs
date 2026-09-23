@@ -17,8 +17,8 @@ use embassy_time::Timer;
 use panic_probe as _;
 use static_cell::StaticCell;
 
-use vl53l4cd_ulp::VL53L4cd;
 use vl53l4cd_ulp::Error;
+use vl53l4cd_ulp::VL53L4cd;
 
 use rtt_target::rtt_init_print;
 
@@ -59,7 +59,7 @@ async fn main(spawner: Spawner) {
 
     // Shared I2C bus
     let i2c = I2c::new_async(p.I2C1, scl, sda, Irqs, i2c::Config::default());
-    
+
     static I2C_BUS: StaticCell<I2c1Bus> = StaticCell::new();
     let i2c1_bus = I2C_BUS.init(Mutex::new(i2c));
 
@@ -98,10 +98,7 @@ async fn defmtusb_wrapper(usb: Peri<'static, USB>) {
             defmt::flush();
         }
     };
-    embassy_futures::join::join(
-        defmt_embassy_usbserial::run(driver, config),
-        flush_logs,
-    ).await;
+    embassy_futures::join::join(defmt_embassy_usbserial::run(driver, config), flush_logs).await;
 }
 
 #[embassy_executor::task]

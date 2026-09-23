@@ -89,8 +89,5 @@ async fn defmtusb_wrapper(usb: Peri<'static, USB>) {
             defmt::flush();
         }
     };
-    embassy_futures::join::join(
-        defmt_embassy_usbserial::run(driver, config),
-        flush_logs,
-    ).await;
+    embassy_futures::join::join(defmt_embassy_usbserial::run(driver, config), flush_logs).await;
 }
