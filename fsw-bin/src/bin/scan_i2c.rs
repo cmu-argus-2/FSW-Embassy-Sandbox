@@ -10,7 +10,7 @@ use embassy_rp::i2c::{self, I2c, InterruptHandler};
 use embassy_rp::peripherals::{I2C0, I2C1, USB};
 use embassy_rp::{Peri, bind_interrupts};
 use embassy_time::Timer;
-use {panic_probe as _};
+use panic_probe as _;
 
 use rtt_target::rtt_init_print;
 
@@ -50,12 +50,15 @@ async fn main(spawner: Spawner) {
         // i2c.write returns OK on every address, so use i2c.read to detect device
         match i2c0.read_async(address, &mut buf).await {
             Ok(res) => {
-                info!("Found device at address: {:#X} with result: {:?}", address, res);
-            },
+                info!(
+                    "Found device at address: {:#X} with result: {:?}",
+                    address, res
+                );
+            }
             Err(_) => {
                 // info!("No device at address: {:#X}\r\n", address);
                 //address not found, do nothing
-            },
+            }
         }
         //delay needed to prevent overloading i2c bus
         Timer::after_millis(10).await;
@@ -66,12 +69,15 @@ async fn main(spawner: Spawner) {
         // i2c.write returns OK on every address, so use i2c.read to detect device
         match i2c1.read_async(address, &mut buf).await {
             Ok(res) => {
-                info!("Found device at address: {:#X} with result: {:?}", address, res);
-            },
+                info!(
+                    "Found device at address: {:#X} with result: {:?}",
+                    address, res
+                );
+            }
             Err(_) => {
                 // info!("No device at address: {:#X}\r\n", address);
                 //address not found, do nothing
-            },
+            }
         }
         //delay needed to prevent overloading i2c bus
         Timer::after_millis(10).await;
@@ -101,8 +107,5 @@ async fn defmtusb_wrapper(usb: Peri<'static, USB>) {
             defmt::flush();
         }
     };
-    embassy_futures::join::join(
-        defmt_embassy_usbserial::run(driver, config),
-        flush_logs,
-    ).await;
+    embassy_futures::join::join(defmt_embassy_usbserial::run(driver, config), flush_logs).await;
 }

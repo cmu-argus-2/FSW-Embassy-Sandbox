@@ -3,7 +3,7 @@
 #![no_std]
 #![no_main]
 
-use defmt::{info, error};
+use defmt::{error, info};
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Level, Output};
@@ -14,11 +14,11 @@ use embassy_rp::{Peri, bind_interrupts};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::Timer;
+use panic_probe as _;
 use static_cell::StaticCell;
-use {panic_probe as _};
 
-use vl53l4cd_ulp::VL53L4cd;
 use vl53l4cd_ulp::Error;
+use vl53l4cd_ulp::VL53L4cd;
 
 use rtt_target::rtt_init_print;
 
@@ -59,7 +59,7 @@ async fn main(spawner: Spawner) {
 
     // Shared I2C bus
     let i2c = I2c::new_async(p.I2C1, scl, sda, Irqs, i2c::Config::default());
-    
+
     static I2C_BUS: StaticCell<I2c1Bus> = StaticCell::new();
     let i2c1_bus = I2C_BUS.init(Mutex::new(i2c));
 
@@ -100,10 +100,7 @@ async fn defmtusb_wrapper(usb: Peri<'static, USB>) {
             defmt::flush();
         }
     };
-    embassy_futures::join::join(
-        defmt_embassy_usbserial::run(driver, config),
-        flush_logs,
-    ).await;
+    embassy_futures::join::join(defmt_embassy_usbserial::run(driver, config), flush_logs).await;
 }
 
 #[embassy_executor::task]
@@ -120,7 +117,7 @@ async fn adm1176_task(i2c_bus: &'static I2c1Bus) {
                 error!("{}", e);
             }
         }
-        
+
         Timer::after_secs(1).await;
     }
 }
@@ -144,5 +141,5 @@ async fn vl53l4cd_task(i2c_bus: &'static I2c1Bus) {
             }
         }
         Timer::after_secs(1).await;
-    } 
+    }
 }
