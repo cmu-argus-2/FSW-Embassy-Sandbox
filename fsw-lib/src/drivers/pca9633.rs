@@ -81,8 +81,9 @@ impl<I2C: I2c> PCA9633<I2C> {
     /// returns the first error.
     pub async fn disable_driver(&mut self) -> Result<(), Error<I2C::Error>> {
         let mut result = Ok(());
-        for channel in [ENABLE_CHANNEL, 0, 1, 2] {
-            result = result.and(self.set_pwm(channel, PWM_MIN).await);
+        // Supply channel first, then the wires in reverse order, as pca9633.py does
+        for channel in [ENABLE_CHANNEL, 2, 1, 0] {
+            result = result.and(self.turn_off_pwm(channel).await);
         }
         result.and(
             self.update_reg(regs::MODE1, bits::MODE1_SLEEP, bits::MODE1_SLEEP)
