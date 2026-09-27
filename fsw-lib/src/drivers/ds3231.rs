@@ -45,14 +45,24 @@ impl<I2C: I2c> DS3231<I2C> {
         Self { i2c, addr }
     }
 
+    /// The chip stores each field as binary-coded decimal: one decimal digit per nibble,
+    /// so the value 25 is stored as 0x25 rather than 0x19. These convert both ways.
+    ///
+    /// 0x25 -> (0x25 & 0xF0) >> 4 = 2, times 10, plus (0x25 & 0x0F) = 5, so 25.
     fn bcd2dec(bcd: u8) -> u8 {
         ((bcd & 0xF0) >> 4) * 10 + (bcd & 0x0F)
     }
+
+    /// 25 -> (25 / 10) << 4 = 0x20, or (25 % 10) = 5, so 0x25.
     fn dec2bcd(dec: u8) -> u8 {
         ((dec / 10) << 4) | (dec % 10)
     }
 
-    fn to_naive(dt: &DateTime) -> Option<NaiveDateTime> {
+    /// Converts our `DateTime` into chrono's `NaiveDateTime` ("naive" meaning it carries no
+    /// time zone; the chip keeps UTC by convention). Used only as a stepping stone to
+    /// compute a Unix timestamp, and returns `None` if the fields are not a real date,
+    /// which is how a blank or corrupted chip is detected.
+    fn to_chrono_datetime(dt: &DateTime) -> Option<NaiveDateTime> {
         NaiveDate::from_ymd_opt(dt.year as i32, dt.month as u32, dt.day as u32)?.and_hms_opt(
             dt.hour as u32,
             dt.minute as u32,
@@ -63,7 +73,7 @@ impl<I2C: I2c> DS3231<I2C> {
     /// Current time as seconds since the Unix epoch (UTC).
     pub async fn unix_time(&mut self) -> Result<i64, Error<I2C::Error>> {
         let dt = self.datetime().await?;
-        let naive = Self::to_naive(&dt).ok_or(Error::InvalidTime)?;
+        let naive = Self::to_chrono_datetime(&dt).ok_or(Error::InvalidTime)?;
         Ok(naive.and_utc().timestamp())
     }
 
@@ -82,7 +92,9 @@ impl<I2C: I2c> DS3231<I2C> {
 
     pub async fn set_datetime(&mut self, dt: &DateTime) -> Result<(), Error<I2C::Error>> {
         // The chip only stores two year digits, so it can only represent 2000-2099
-        if !(YEAR_OFFSET..YEAR_OFFSET + 100).contains(&dt.year) || Self::to_naive(dt).is_none() {
+        if !(YEAR_OFFSET..YEAR_OFFSET + 100).contains(&dt.year)
+            || Self::to_chrono_datetime(dt).is_none()
+        {
             return Err(Error::InvalidTime);
         }
 
