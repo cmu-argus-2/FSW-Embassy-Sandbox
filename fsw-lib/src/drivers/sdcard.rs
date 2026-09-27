@@ -130,7 +130,12 @@ impl<D: BlockDevice, T: TimeSource> SdStorage<D, T> {
 
     /// Delete a file. embedded-sdmmc 0.9 does not free a deleted file's clusters, so the file
     /// is truncated first, which frees all but its first cluster. That one cluster stays
-    /// allocated until the card is repaired with fsck, so prefer overwriting files to deleting them.
+    /// allocated until the card is repaired with fsck.
+    ///
+    /// Because of that leak, do NOT use this to rotate logs. Data logging that deletes the
+    /// oldest file each time it hits a size limit would leak one cluster per rotation and
+    /// eventually fill the card. Rotate by overwriting a fixed set of file names with
+    /// `write_file`, which reuses the clusters the file already holds.
     pub fn delete_file(&self, name: &str) -> Result<(), Error<D::Error>> {
         self.with_file(name, Mode::ReadWriteTruncate, |_| Ok(()))?;
         self.mgr.delete_file_in_dir(self.root, name)
