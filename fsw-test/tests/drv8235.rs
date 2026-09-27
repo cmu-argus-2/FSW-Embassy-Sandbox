@@ -31,8 +31,8 @@ async fn init_matches_flight_driver() {
             (0x0E, 0x18),
             (0x0F, 0x00),
             (0x0C, 0x10),
-            (0x13, 0xC0),
-            (0x14, 0x52),
+            (0x13, 0x80),
+            (0x14, 0x29),
             (0x09, 0x80),
             (0x09, 0x82),
         ]),
@@ -53,8 +53,8 @@ async fn init_matches_flight_driver() {
             (0x0E, 0xFF),
             (0x0F, 0x00),
             (0x0C, 0xFF),
-            (0x13, 0xFF),
-            (0x14, 0x52),
+            (0x13, 0xBF),
+            (0x14, 0x29),
             (0x09, 0xFF),
             (0x09, 0xFF),
         ]),
@@ -71,30 +71,38 @@ enum Set {
 #[tokio::test]
 async fn throttle_matches_flight_driver() {
     // (setter, register writes, throttle(), throttle_volts(), throttle_raw())
-    let cases: [(Set, &[(u8, u8)], Option<f32>, Option<f32>, Option<i16>); 12] = [
+    let cases: [(Set, &[(u8, u8)], Option<f32>, Option<f32>, Option<i16>); 13] = [
         (
             Set::Throttle(Some(1.0)),
-            &[(0x0F, 0x28), (0x0D, 0x0E)],
-            Some(0.9943333),
-            Some(6.6932),
-            Some(40),
+            &[(0x0F, 0x23), (0x0D, 0x0E)],
+            Some(0.9742983),
+            Some(5.85655),
+            Some(35),
         ),
         (
             Set::Throttle(Some(-0.5)),
-            &[(0x0F, 0x14), (0x0D, 0x0D)],
-            Some(-0.494),
-            Some(-3.3466),
-            Some(-20),
+            &[(0x0F, 0x11), (0x0D, 0x0D)],
+            Some(-0.4764817),
+            Some(-2.84461),
+            Some(-17),
         ),
         (
             Set::Throttle(Some(2.0)),
-            &[(0x0F, 0x28), (0x0D, 0x0E)],
-            Some(0.9943333),
-            Some(6.6932),
-            Some(40),
+            &[(0x0F, 0x23), (0x0D, 0x0E)],
+            Some(0.9742983),
+            Some(5.85655),
+            Some(35),
         ),
         (
             Set::Throttle(Some(0.0)),
+            &[(0x0F, 0x00), (0x0D, 0x0F)],
+            Some(0.0),
+            Some(0.0),
+            Some(0),
+        ),
+        // Too small to move the register, so it brakes rather than driving at 0
+        (
+            Set::Throttle(Some(0.001)),
             &[(0x0F, 0x00), (0x0D, 0x0F)],
             Some(0.0),
             Some(0.0),
@@ -110,21 +118,21 @@ async fn throttle_matches_flight_driver() {
         (
             Set::Volts(Some(3.0)),
             &[(0x0F, 0x12), (0x0D, 0x0E)],
-            Some(0.4496667),
+            Some(0.5049283),
             Some(3.01194),
             Some(18),
         ),
         (
             Set::Volts(Some(-50.0)),
             &[(0x0F, 0xFF), (0x0D, 0x0D)],
-            Some(-6.3333333),
+            Some(-7.1116667),
             Some(-42.66915),
             Some(-255),
         ),
         (
             Set::Volts(Some(0.1)),
             &[(0x0F, 0x01), (0x0D, 0x0E)],
-            Some(0.0253333),
+            Some(0.0284467),
             Some(0.16733),
             Some(1),
         ),
@@ -138,7 +146,7 @@ async fn throttle_matches_flight_driver() {
         (
             Set::Raw(Some(100)),
             &[(0x0F, 0x64), (0x0D, 0x0E)],
-            Some(2.4826667),
+            Some(2.7877733),
             Some(16.733),
             Some(100),
         ),
@@ -147,7 +155,7 @@ async fn throttle_matches_flight_driver() {
         (
             Set::Raw(Some(-300)),
             &[(0x0F, 0xFF), (0x0D, 0x0D)],
-            Some(-6.3333333),
+            Some(-7.1116667),
             Some(-42.66915),
             Some(-255),
         ),
@@ -206,13 +214,23 @@ async fn throttle_matches_flight_driver() {
 
 #[tokio::test]
 async fn reads_voltage_and_current() {
-    let mut regs = FakeRegs::new(&[(0x04, 100), (0x05, 50)]);
+    // Forward: both positive
+    let mut regs = FakeRegs::new(&[(0x04, 100), (0x05, 50), (0x0D, 0x0E)]);
     let (volts, amps) = DRV8235::new(&mut regs, ADDR)
         .read_voltage_current()
         .await
         .unwrap();
-    assert_close("volts", Some(volts), Some(16.733));
-    assert_close("amps", Some(amps), Some(0.7255));
+    assert_close("volts forward", Some(volts), Some(16.733));
+    assert_close("amps forward", Some(amps), Some(0.7255));
+
+    // Reverse: both negative, as the flight driver reports them
+    let mut regs = FakeRegs::new(&[(0x04, 100), (0x05, 50), (0x0D, 0x0D)]);
+    let (volts, amps) = DRV8235::new(&mut regs, ADDR)
+        .read_voltage_current()
+        .await
+        .unwrap();
+    assert_close("volts reverse", Some(volts), Some(-16.733));
+    assert_close("amps reverse", Some(amps), Some(-0.7255));
 }
 
 #[tokio::test]

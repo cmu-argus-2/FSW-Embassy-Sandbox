@@ -39,7 +39,7 @@ mod bits {
     pub const NPOR: u8 = 1 << 1;
 }
 
-const DRV_MAX_VOLT: f32 = 38.0;
+const DRV_MAX_VOLT: f32 = 42.67;
 const COIL_MAX_VOLT: f32 = 6.0;
 const THROTTLE_MAX: f32 = COIL_MAX_VOLT / DRV_MAX_VOLT;
 
@@ -49,9 +49,8 @@ const INDEX_PER_VOLT: f32 = 5.9761; // 255 / 42.67 V
 const AMPS_PER_INDEX: f32 = 0.01451; // 3.7 A / 255
 
 const REG_CTRL_VOLTAGE: u8 = 0b11;
-// TODO (carried over from drv8235.py): check inv_r_scale and inv_r values
-const INV_R_SCALE: u8 = 0b11;
-const INV_R: u8 = 82;
+const INV_R_SCALE: u8 = 0b10;
+const INV_R: u8 = 41;
 
 /// H-bridge state. Bit order: IN2 IN1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
@@ -140,7 +139,11 @@ impl<I2C: I2c> DRV8235<I2C> {
             return self.coast().await;
         };
         let fraction = (throttle * THROTTLE_MAX).clamp(-THROTTLE_MAX, THROTTLE_MAX);
-        self.drive(throttle, (fraction.abs() * 255.0) as u8).await
+        // Direction comes from the register value, not the requested throttle, so a
+        // throttle too small to move the register brakes rather than driving at 0
+        let index = (fraction.abs() * 255.0) as u8;
+        let sign = if index == 0 { 0.0 } else { throttle };
+        self.drive(sign, index).await
     }
 
     /// Throttle in volts from -42.7 to 42.7. `None` coasts, `0.0` brakes.
@@ -187,11 +190,16 @@ impl<I2C: I2c> DRV8235<I2C> {
         ))
     }
 
-    /// Measured (volts, amps) across the coil.
+    /// Measured (volts, amps) across the coil. Both are negative while running in reverse.
     pub async fn read_voltage_current(&mut self) -> Result<(f32, f32), I2C::Error> {
         let voltage = self.read_reg(regs::REG_STATUS1).await? as f32 * VOLTS_PER_INDEX;
         let current = self.read_reg(regs::REG_STATUS2).await? as f32 * AMPS_PER_INDEX;
-        Ok((voltage, current))
+        let sign = if self.bridge_control().await? == BridgeControl::Reverse {
+            -1.0
+        } else {
+            1.0
+        };
+        Ok((sign * voltage, sign * current))
     }
 
     /// Read the fault flags. If any fault is reported, the flags are cleared afterwards.
