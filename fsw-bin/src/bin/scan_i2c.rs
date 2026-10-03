@@ -7,7 +7,7 @@ use defmt::info;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::i2c::{self, I2c, InterruptHandler};
-use embassy_rp::peripherals::{I2C1, USB};
+use embassy_rp::peripherals::{I2C0, I2C1, USB};
 use embassy_rp::{Peri, bind_interrupts};
 use embassy_time::Timer;
 use panic_probe as _;
@@ -16,6 +16,7 @@ use rtt_target::rtt_init_print;
 
 bind_interrupts!(struct Irqs {
     I2C1_IRQ => InterruptHandler<I2C1>;
+    I2C0_IRQ => InterruptHandler<I2C0>;
     USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<embassy_rp::peripherals::USB>;
 });
 
@@ -36,9 +37,12 @@ async fn main(spawner: Spawner) {
     //turn on peri
     let mut led = Output::new(p.PIN_42, Level::Low);
     led.set_high();
+    // Allow the switched peripheral supply to settle before I2C access.
+    Timer::after_millis(100).await;
 
     // Shared I2C bus
-    let mut i2c = I2c::new_async(p.I2C1, p.PIN_47, p.PIN_46, Irqs, i2c::Config::default());
+    let mut i2c0 = I2c::new_async(p.I2C0, p.PIN_25, p.PIN_24, Irqs, i2c::Config::default());
+    let mut i2c1 = I2c::new_async(p.I2C1, p.PIN_47, p.PIN_46, Irqs, i2c::Config::default());
 
     info!("Starting loop");
     let mut buf = [0u8];
@@ -62,7 +66,7 @@ async fn main(spawner: Spawner) {
     info!("finished scan");
     loop {
         info!("looping...");
-        Timer::after_secs(5).await;
+        Timer::after_secs(1).await;
     }
 }
 
@@ -79,5 +83,11 @@ async fn defmtusb_wrapper(usb: Peri<'static, USB>) {
         c.device_protocol = 0x01;
         c
     };
-    defmt_embassy_usbserial::run(driver, config).await;
+    let flush_logs = async {
+        loop {
+            Timer::after_millis(250).await;
+            defmt::flush();
+        }
+    };
+    embassy_futures::join::join(defmt_embassy_usbserial::run(driver, config), flush_logs).await;
 }
