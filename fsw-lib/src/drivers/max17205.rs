@@ -132,7 +132,7 @@ impl<I2C: I2c> MAX17205<I2C> {
     /// Returns temperature in centi-Celsius.
     pub async fn read_temperature(&mut self) -> Result<f32, I2C::Error> {
         let buf = self.read_reg(self.read_addr, TEMP_ADDR).await?;
-        let raw = u16::from_le_bytes(buf);
+        let raw = i16::from_le_bytes(buf);
         Ok(raw as f32 * 0.390625)
     }
 
