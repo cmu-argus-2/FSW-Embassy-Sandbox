@@ -1,0 +1,28 @@
+[package]
+name = "fsw-board"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Argus mainboard v4 (RP2350B) board support: pin map, buses, power-up sequence, device addresses"
+
+[features]
+default = []
+# USB-serial defmt logger task for bench/bring-up binaries.
+# Off by default: a binary may only link one defmt global logger.
+usb-log = ["dep:embassy-executor", "dep:embassy-futures", "dep:embassy-usb", "dep:defmt-embassy-usbserial"]
+
+[dependencies]
+embassy-rp = { version = "0.9.0", features = ["defmt", "rp235xb"] }
+embassy-sync = { version = "0.7.2", features = ["defmt"] }
+embassy-time = { version = "0.5.0", features = ["defmt"] }
+embassy-embedded-hal = { version = "0.5.0", features = ["defmt"] }
+static_cell = "2.1"
+defmt = "1.0.1"
+assign-resources = { git = "https://github.com/adamgreig/assign-resources", rev = "bd22cb7a92031fb16f74a5da42469d466c33383e" }
+
+# usb-log feature
+embassy-executor = { version = "0.9.0", features = ["defmt"], optional = true }
+embassy-futures = { version = "0.1.2", optional = true }
+embassy-usb = { version = "0.5.1", features = ["defmt"], optional = true }
+defmt-embassy-usbserial = { version = "0.2.1", default-features = false, features = ["buffersize-64"], optional = true }
