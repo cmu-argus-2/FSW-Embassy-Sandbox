@@ -13,6 +13,8 @@ default = []
 usb-log = ["dep:embassy-executor", "dep:embassy-futures", "dep:embassy-usb", "dep:defmt-embassy-usbserial"]
 
 [dependencies]
+fsw-hal = {workspace = true}
+fsw-lib = {workspace = true}
 embassy-rp = { version = "0.9.0", features = ["defmt", "rp235xb"] }
 embassy-sync = { version = "0.7.2", features = ["defmt"] }
 embassy-time = { version = "0.5.0", features = ["defmt"] }

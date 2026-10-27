@@ -10,12 +10,15 @@
 //! `FSW-mainboard/firmware/Mainboard v4/pins.c`. Bus speeds, buffer sizes and device addresses are
 //! taken from `flight/hal/argus_v4.py`.
 //!
+//! It also turns the board's chips into devices: adapters (e.g. [`imu`]) implement the `fsw-hal`
+//! traits on `fsw-lib` drivers, and [`hardware::Hardware`] lists every device and brings them up.
+//!
 //! # Usage
 //!
 //! ```ignore
 //! let r = fsw_board::init();
-//! let power = fsw_board::power::BoardPower::up(r.power).await;
-//! let i2c1 = fsw_board::i2c_bus::i2c1(r.i2c1, &power.powered_up);
+//! let Hardware { power, imu } = Hardware::init(r.power, r.i2c0).await;
+//! // move `imu` into the task that owns it; keep `power` alive for the whole program
 //! ```
 //!
 //! Binaries must use [`Irqs`] from this crate rather than declaring their own `bind_interrupts!`
@@ -27,10 +30,10 @@ use embassy_rp::{Peri, bind_interrupts, i2c, peripherals, uart, usb};
 
 pub mod devices;
 pub mod gpio;
+pub mod hardware;
 pub mod i2c_bus;
+pub mod imu;
 pub mod power;
-pub mod spi_bus;
-pub mod uart_bus;
 #[cfg(feature = "usb-log")]
 pub mod usb_log;
 

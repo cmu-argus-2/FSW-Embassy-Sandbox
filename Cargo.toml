@@ -1,6 +1,9 @@
 [workspace]
-members = ["fsw-lib", "fsw-bin", "fsw-test"]
+members = ["fsw-hal", "fsw-lib", "fsw-board", "fsw-apps", "fsw-bin", "fsw-test"]
 resolver = "3"
 
 [workspace.dependencies]
+fsw-hal = {path = "fsw-hal"}
 fsw-lib = {path = "fsw-lib"}
+fsw-board = {path = "fsw-board"}
+fsw-apps = {path = "fsw-apps"}
