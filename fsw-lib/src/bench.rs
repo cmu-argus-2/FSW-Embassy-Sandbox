@@ -20,47 +20,6 @@
 /// Identifies this port in every row it emits.
 pub const PORT: &str = "rust-embassy";
 
-/// Which load the measurement was taken under. A task alone on the CPU meets its
-/// deadline on any of the three ports; the ports diverge under contention, so the
-/// scenario is part of every row rather than a note beside the results.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
-pub enum Scenario {
-    /// The measured task alone.
-    Idle,
-    /// Every planned task at its real rate.
-    Nominal,
-    /// Nominal plus a task that deliberately overruns its period.
-    Overload,
-}
-
-impl Scenario {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Scenario::Idle => "idle",
-            Scenario::Nominal => "nominal",
-            Scenario::Overload => "overload",
-        }
-    }
-}
-
-/// Identifies one measurement run: which load, and which repeat.
-///
-/// Results are only comparable across ports when both are stated, and a single run
-/// cannot support a claim at all: the spec calls for at least 5 runs per scenario and
-/// reporting the spread alongside the median.
-#[derive(Debug, Clone, Copy)]
-pub struct Run {
-    pub scenario: Scenario,
-    /// 1-based repeat index.
-    pub index: u32,
-}
-
-impl Run {
-    pub fn new(scenario: Scenario, index: u32) -> Self {
-        Self { scenario, index }
-    }
-}
-
 /// How many histogram buckets Stats keeps for percentile estimates.
 const BUCKETS: usize = 64;
 
@@ -171,66 +130,4 @@ impl Stats {
     pub fn reset(&mut self) {
         *self = Self::new(self.bucket_us);
     }
-
-    /// Emit one CSV row per statistic, plus the histogram resolution.
-    ///
-    /// `category` is performance, efficiency, stability or correctness; `subject`
-    /// names what was measured, e.g. "eps_task".
-    pub fn report(&self, run: Run, category: &str, metric: &str, subject: &str, unit: &str) {
-        for (stat, value) in [
-            ("min", self.min()),
-            ("mean", self.mean()),
-            ("p50", self.percentile(50)),
-            ("p99", self.percentile(99)),
-            ("max", self.max()),
-        ] {
-            row(
-                run,
-                category,
-                metric,
-                subject,
-                stat,
-                value,
-                unit,
-                self.count(),
-            );
-        }
-        row(
-            run,
-            category,
-            metric,
-            subject,
-            "resolution",
-            self.resolution_us(),
-            unit,
-            self.count(),
-        );
-    }
-}
-
-/// Emit a single measurement row. Use this directly for one-off values such as a
-/// reset count or an image size.
-pub fn row(
-    run: Run,
-    category: &str,
-    metric: &str,
-    subject: &str,
-    stat: &str,
-    value: u32,
-    unit: &str,
-    n: u32,
-) {
-    defmt::info!(
-        "BENCH,{},{},{},{},{},{},{},{},{},{}",
-        PORT,
-        run.scenario.as_str(),
-        run.index,
-        category,
-        metric,
-        subject,
-        stat,
-        value,
-        unit,
-        n
-    );
 }
