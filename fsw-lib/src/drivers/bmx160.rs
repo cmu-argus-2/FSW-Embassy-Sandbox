@@ -4,11 +4,10 @@ use embedded_hal_async::i2c::I2c;
 /*
  * BMX160 IMU Driver (gyroscope + BMM150 magnetometer)
  *
- * Ported from FSW-mainboard flight/hal/drivers/bmx160.py.
- * Only what reading the gyro needs is ported: soft reset, chip ID check, and the Python
- * driver's init sequence (magnetometer setup, including reading the BMM150 trim, then
- * gyroscope setup). Magnetometer and accelerometer readings are not ported yet; the
- * accelerometer is left in its post-reset suspend mode.
+ * Supports what reading the gyro needs: soft reset, chip ID check, and the init sequence
+ * (magnetometer setup, including reading the BMM150 trim, then gyroscope setup).
+ * Magnetometer and accelerometer readings are not implemented yet; the accelerometer is
+ * left in its post-reset suspend mode.
  */
 
 mod regs {
@@ -37,11 +36,10 @@ const CHIP_ID: u8 = 0xD8;
 const STATUS_MAG_MAN_OP: u8 = 1 << 2;
 
 const MAG_ODR_12_5HZ: u8 = 0x05;
-/// The Python driver asks for 25 Hz, but its ODR value and constant tables are misaligned,
-/// so it falls back to the last constant and actually writes 50 Hz (OSR4 filter). Kept the same.
+/// Gyro output data rate 50 Hz, OSR4 filter.
 const GYRO_ODR_50HZ: u8 = 0x07;
 
-/// Polls of `mag_man_op` before a BMM150 indirect access is declared stuck (Python: 1 ms).
+/// Polls of `mag_man_op` before a BMM150 indirect access is declared stuck (about 1 ms).
 const MAG_IF_POLLS: u32 = 10;
 const MAG_IF_POLL_US: u32 = 100;
 
@@ -121,11 +119,11 @@ impl<I2C: I2c> BMX160<I2C> {
         }
     }
 
-    /// Soft reset, check the chip ID, then set up the magnetometer and gyroscope with the same
-    /// settings as the Python flight driver.
+    /// Soft reset, check the chip ID, then set up the magnetometer and the gyroscope (500 dps,
+    /// 50 Hz).
     pub async fn init<D: DelayNs>(&mut self, delay: &mut D) -> Result<(), Error<I2C::Error>> {
         self.write_reg(regs::COMMAND, cmd::SOFT_RESET).await?;
-        // Datasheet says ~1 ms; the Python driver found 3 ms needed in practice.
+        // Datasheet says ~1 ms; 3 ms is needed in practice.
         delay.delay_ms(3).await;
 
         let id = self.read_reg(regs::CHIP_ID).await?;
@@ -175,7 +173,7 @@ impl<I2C: I2c> BMX160<I2C> {
             2 => GyroRange::Dps500,
             3 => GyroRange::Dps250,
             4 => GyroRange::Dps125,
-            _ => return Ok(()), // Python leaves the scale unchanged
+            _ => return Ok(()), // unknown value: keep the current scale
         };
         self.gyro_scale = applied.scale();
         Ok(())
