@@ -1,4 +1,4 @@
-//! Sensor reading checks. Ported from FSW-mainboard `flight/apps/adcs/sensors.py`.
+//! Sensor reading checks.
 //!
 //! The reading itself is done by the task through the `fsw-hal` sensor traits.
 
@@ -19,7 +19,7 @@ pub fn check_gyro(raw: Result<Vec3, SensorFault>) -> Reading {
     match raw {
         Ok(w) => {
             let norm_sq = w[0] * w[0] + w[1] * w[1] + w[2] * w[2];
-            // Written as `!(x <= max)` so NaN fails, like the Python check.
+            // Written as `!(x <= max)` so NaN fails.
             if !(norm_sq <= MAX_GYRO_NORM * MAX_GYRO_NORM) {
                 return failed;
             }

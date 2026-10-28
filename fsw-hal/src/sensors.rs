@@ -1,4 +1,4 @@
-//! Sensors. Python: `CubeSat.IMU`.
+//! Sensors.
 
 use crate::{SensorFault, Vec3};
 

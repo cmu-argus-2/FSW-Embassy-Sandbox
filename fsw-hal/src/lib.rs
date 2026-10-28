@@ -4,9 +4,6 @@
 //! crate; `fsw-board` implements the traits for the mainboard (on top of `fsw-lib` drivers), and
 //! tests can implement them with fakes.
 //!
-//! Python equivalent: `flight/hal/cubesat.py` (the `CubeSat` interface), plus the methods apps expect
-//! on the objects it returns (`SATELLITE.IMU.gyro()`), which Python never writes down.
-//!
 //! Traits are grouped by device class, not by app, and every trait states its units and frame:
 //!
 //! - [`sensors`]: [`sensors::Gyro`].

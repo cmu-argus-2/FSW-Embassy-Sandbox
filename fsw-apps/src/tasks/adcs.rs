@@ -1,7 +1,7 @@
-//! ADCS task loop. Ported from FSW-mainboard `flight/tasks/adcs.py`.
+//! ADCS task loop.
 //!
-//! For now each cycle reads and checks the gyro; the rest of the Python task (magnetometer, sun
-//! vector, modes, control, coils) comes later.
+//! For now each cycle reads and checks the gyro; the rest of the task (magnetometer, sun vector,
+//! modes, control, coils) comes later.
 //!
 //! The task is generic over the `fsw-hal` traits and a delay, so it has no idea which board or chip
 //! it runs on. Embassy `#[task]` functions cannot be generic, so a binary wraps it in a small task
@@ -13,7 +13,7 @@ use fsw_hal::sensors::Gyro;
 use crate::adcs::Reading;
 use crate::adcs::sensors::check_gyro;
 
-/// `task_configuration.py`: ADCS runs at 1 Hz.
+/// ADCS runs at 1 Hz.
 pub const PERIOD_MS: u32 = 1000;
 
 pub struct AdcsTask<G, D> {

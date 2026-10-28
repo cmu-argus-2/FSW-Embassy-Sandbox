@@ -1,16 +1,14 @@
 //! Boot power-up sequence.
 //!
-//! Ported from `ArgusV4Power` in `flight/hal/argus_v4.py`. In Python the sequence ran as a side
-//! effect of importing the module; here it is the explicit async function [`BoardPower::up`], and
-//! the bus constructors require the [`PoweredUp`] proof it returns, so a bus cannot be created
-//! before its devices have power.
+//! [`BoardPower::up`] runs the sequence, and the bus constructors require the [`PoweredUp`] proof it
+//! returns, so a bus cannot be created before its devices have power.
 
 use embassy_rp::gpio::{Level, Output};
 use embassy_time::Timer;
 
 use crate::PowerPins;
 
-/// Time for the 3.3 V peripheral line to settle before I2C access (argus_v4.py: `time.sleep(0.1)`).
+/// Time for the 3.3 V peripheral line to settle before I2C access.
 pub const PERIPH_SETTLE_MS: u64 = 100;
 
 /// Proof that [`BoardPower::up`] has run. Bus and device constructors take `&PoweredUp`.
@@ -33,11 +31,11 @@ pub struct BoardPower {
 }
 
 impl BoardPower {
-    /// Boot power-up sequence, in the same order as `ArgusV4Power`: peripheral line on, settle
-    /// 100 ms, then GPS, radio and coil lines on.
+    /// Boot power-up sequence: peripheral line on, settle 100 ms, then GPS, radio and coil lines
+    /// on.
     ///
-    /// One deliberate difference: the main power reset line is driven low first, instead of being
-    /// left unconfigured until after the settle delay.
+    /// The main power reset line is driven low first, so it is never left floating during the
+    /// settle delay.
     pub async fn up(r: PowerPins) -> Self {
         let main_reset = Output::new(r.main_pwr_rst, Level::Low);
 

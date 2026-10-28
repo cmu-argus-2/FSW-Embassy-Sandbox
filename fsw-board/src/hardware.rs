@@ -1,5 +1,4 @@
-//! Every device on the board, brought up in one place. Python: the device list and
-//! `boot_sequence` of `ArgusV4` in `flight/hal/argus_v4.py`.
+//! Every device on the board, brought up in one place.
 //!
 //! A binary calls [`Hardware::init`], then destructures the result and moves each device into the
 //! one task that owns it. Add a field here for each new device.

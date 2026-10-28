@@ -1,7 +1,6 @@
 //! IMU adapter: the BMX160 as an `fsw-hal` [`Gyro`].
 //!
-//! The Python flight software uses the BMX160 axes directly as body axes, so there is no axis
-//! remapping here.
+//! The BMX160 axes are used directly as body axes, so there is no axis remapping here.
 
 use defmt::{error, info};
 use embassy_time::Delay;
@@ -17,7 +16,7 @@ pub struct Bmx160Imu {
 }
 
 impl Bmx160Imu {
-    /// Set up the BMX160 on I2C0 with the Python driver's settings. If it fails to start, the
+    /// Set up the BMX160 on I2C0 with the flight settings. If it fails to start, the
     /// adapter is still returned and every read reports [`SensorFault`], so the task's failure path
     /// runs instead of the board failing to boot.
     pub async fn new(i2c: I2c0Device) -> Self {
