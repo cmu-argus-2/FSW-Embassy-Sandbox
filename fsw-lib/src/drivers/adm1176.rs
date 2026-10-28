@@ -74,7 +74,9 @@ impl<I2C: I2c> ADM1176<I2C> {
         let mut buf = [0u8; 3];
         self.i2c.read(self.addr, &mut buf).await?;
         let raw_voltage = (((buf[0] as u16) << 8) | ((buf[2] & 0xF0) as u16)) >> 4;
-        let raw_current = ((buf[1] << 4) | (buf[2] & 0x0F)) as u16;
+        // Widen before shifting: `buf[1] << 4` on a u8 drops the top four bits, which
+        // are the most significant bits of the current reading
+        let raw_current = ((buf[1] as u16) << 4) | ((buf[2] & 0x0F) as u16);
         let voltage = (self.v_fs_over_res) * raw_voltage as f32; // volts
         let current = ((self.i_fs_over_res) * raw_current as f32) / self.sense_resistor; // amperes
         Ok((voltage, current))
