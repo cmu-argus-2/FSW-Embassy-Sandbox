@@ -20,6 +20,7 @@ pub const DEFAULT_ADDRESS: u8 = 0x51;
 mod regs {
     pub const SECONDS: u8 = 0x01; // through YEAR at 0x07, auto-incrementing
     pub const STATUS: u8 = 0x0D;
+    pub const TEMP_LSB: u8 = 0x0E; // TEMP[3:0] in bits 7:4, flags in bits 3:0
 }
 
 mod masks {
@@ -33,6 +34,8 @@ mod masks {
 }
 
 const YEAR_OFFSET: u16 = 2000;
+/// Temperature is 12-bit two's complement, one count is 1/16 of a degree
+const TEMP_PER_COUNT: f32 = 0.0625;
 
 #[derive(Debug, defmt::Format)]
 pub enum Error<E> {
@@ -171,5 +174,24 @@ impl<I2C: I2c> RV3032<I2C> {
             .await
             .map_err(Error::I2c)?;
         Ok(b[0])
+    }
+
+    /// Die temperature in degrees Celsius, which the chip measures every second and uses
+    /// for its own frequency compensation. The first value appears a second after power-up.
+    pub async fn temperature(&mut self) -> Result<f32, Error<I2C::Error>> {
+        let mut b = [0u8; 2];
+        self.i2c
+            .write_read(self.addr, &[regs::TEMP_LSB], &mut b)
+            .await
+            .map_err(Error::I2c)?;
+
+        // TEMP[3:0] sits in the top nibble of 0x0E, TEMP[11:4] in 0x0F
+        let raw = ((b[1] as u16) << 4) | (b[0] >> 4) as u16;
+        let signed = if raw & 0x800 != 0 {
+            raw as i16 - 0x1000
+        } else {
+            raw as i16
+        };
+        Ok(signed as f32 * TEMP_PER_COUNT)
     }
 }
