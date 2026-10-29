@@ -29,9 +29,7 @@ use fsw_hal::{SensorFault, Vec3};
 ///
 /// A `Signal` holds one value and writing overwrites it without waiting, so a service never blocks
 /// on a slow task. That is enough because a task sends one request at a time and waits for its
-/// reply before sending the next. Happy path only: a client waits as long as the reply takes, so a
-/// stuck service also stalls the tasks waiting on it. `CriticalSectionRawMutex` because the service
-/// and the task may run on different executors.
+/// reply before sending the next.
 pub type ReplySlot<T> = Signal<CriticalSectionRawMutex, T>;
 
 /// Reply slot for vector readings (angular rate, magnetic field).
