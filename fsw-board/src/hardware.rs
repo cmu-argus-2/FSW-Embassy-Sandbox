@@ -6,15 +6,15 @@
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 
 use crate::power::BoardPower;
-use crate::services::imu::Bmx160Imu;
+use crate::services::imu::{self, Imu};
 use crate::{I2c0Pins, PowerPins, i2c_bus};
 
 pub struct Hardware {
     /// Power lines from the boot sequence. Keep this alive for the whole program: dropping it
     /// releases the enable pins, which switches the lines off (and every device with them).
     pub power: BoardPower,
-    /// Gyro (BMX160 on I2C0).
-    pub imu: Bmx160Imu,
+    /// Gyro and magnetometer (BMX160 on I2C0).
+    pub imu: Imu,
 }
 
 impl Hardware {
@@ -23,7 +23,7 @@ impl Hardware {
         let power = BoardPower::up(power).await;
         let i2c0 = i2c_bus::i2c0(i2c0, &power.powered_up);
 
-        let imu = Bmx160Imu::new(I2cDevice::new(i2c0)).await;
+        let imu = imu::init(I2cDevice::new(i2c0)).await;
 
         Self { power, imu }
     }

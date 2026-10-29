@@ -4,7 +4,7 @@
 //! ```text
 //! high-priority executor (SWI_IRQ_0)       thread-mode executor
 //! ──────────────────────────────────       ────────────────────
-//! imu_task: owns Bmx160Imu ◀── GYRO_REQ ── adcs_task: gyro = GyroClient
+//! imu_task: owns the IMU   ◀── GYRO_REQ ── adcs_task: gyro = GyroClient
 //!                          ◀── MAG_REQ ───            mag  = MagClient
 //!                          ── ADCS_GYRO_REPLY / ADCS_MAG_REPLY ─▶
 //! ```
@@ -30,7 +30,7 @@ use fsw_apps::adcs::MagCalibration;
 use fsw_apps::tasks::adcs::AdcsTask;
 use fsw_board::hardware::Hardware;
 use fsw_board::services::clients::{GyroClient, MagClient};
-use fsw_board::services::imu::{self, Bmx160Imu};
+use fsw_board::services::imu::{self, Imu};
 use fsw_board::services::{GyroChannel, MagChannel, VecSlot};
 
 /// Angular rate requests, served by the IMU.
@@ -88,7 +88,7 @@ async fn main(spawner: Spawner) {
 }
 
 #[embassy_executor::task]
-async fn imu_task(imu: Bmx160Imu) {
+async fn imu_task(imu: Imu) {
     imu::run(imu, &GYRO_REQ, &MAG_REQ).await
 }
 
