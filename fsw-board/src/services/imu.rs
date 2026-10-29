@@ -1,12 +1,12 @@
-//! IMU service: the BMX160 as an `fsw-hal` [`Gyro`] and [`Magnetometer`], and the task that owns it.
-//! The task serves both the gyro and the magnetometer channel.
+//! IMU service: the BMX160 and the task that owns it. The task serves both the gyro and the
+//! magnetometer channel, reading the driver directly for each request.
 //!
 //! ```text
 //! ADCS task                          IMU service task (run)
 //! ─────────                          ──────────────────────
 //! GyroClient::angular_rate()
 //!   ├─ send GyroRequest{tag, slot} ─▶ receive from GYRO channel
-//!   │                                 imu.angular_rate().await   (I2C read)
+//!   │                                 driver.gyro().await        (I2C read)
 //!   └─ wait on slot ◀──────────────── slot.signal((tag, result))
 //! ```
 //!
@@ -15,8 +15,7 @@
 use defmt::{error, info};
 use embassy_futures::select::{Either, select};
 use embassy_time::Delay;
-use fsw_hal::sensors::{Gyro, Magnetometer};
-use fsw_hal::{SensorFault, Vec3};
+use fsw_hal::SensorFault;
 use fsw_lib::drivers::bmx160::BMX160;
 
 use super::{GyroChannel, GyroRequest, MagChannel, MagRequest};
@@ -44,38 +43,29 @@ impl Bmx160Imu {
     }
 }
 
-impl Gyro for Bmx160Imu {
-    async fn angular_rate(&mut self) -> Result<Vec3, SensorFault> {
-        self.driver.gyro().await.map_err(|e| {
-            error!("gyro read failed: {}", e);
-            SensorFault
-        })
-    }
-}
-
-impl Magnetometer for Bmx160Imu {
-    async fn magnetic_field(&mut self) -> Result<Vec3, SensorFault> {
-        self.driver.mag().await.map_err(|e| {
-            error!("mag read failed: {}", e);
-            SensorFault
-        })
-    }
-}
-
 // ── Service task ────────────────────────────────────────────────────────────────────────────────
 
 /// Own the IMU and answer gyro and magnetometer requests one at a time, forever.
 ///
 /// A binary wraps this in an `#[embassy_executor::task]` (task functions must live where the
 /// concrete types are known) and spawns it on whichever executor the IMU should run on.
-pub async fn run(mut imu: Bmx160Imu, gyro: &'static GyroChannel, mag: &'static MagChannel) -> ! {
+pub async fn run(imu: Bmx160Imu, gyro: &'static GyroChannel, mag: &'static MagChannel) -> ! {
+    let mut driver = imu.driver;
     loop {
         match select(gyro.receive(), mag.receive()).await {
             Either::First(GyroRequest { tag, reply }) => {
-                reply.signal((tag, imu.angular_rate().await));
+                let result = driver.gyro().await.map_err(|e| {
+                    error!("gyro read failed: {}", e);
+                    SensorFault
+                });
+                reply.signal((tag, result));
             }
             Either::Second(MagRequest { tag, reply }) => {
-                reply.signal((tag, imu.magnetic_field().await));
+                let result = driver.mag().await.map_err(|e| {
+                    error!("mag read failed: {}", e);
+                    SensorFault
+                });
+                reply.signal((tag, result));
             }
         }
     }

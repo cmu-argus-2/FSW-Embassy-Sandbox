@@ -2,9 +2,9 @@
 //!
 //! Each service file has two parts:
 //!
-//! - the device: an `fsw-lib` driver wrapped to implement `fsw-hal` traits, set up with this
-//!   board's settings;
-//! - the service task: a `run` loop that owns the device and answers requests.
+//! - the device: an `fsw-lib` driver set up with this board's settings;
+//! - the service task: a `run` loop that owns the device and answers requests by calling the
+//!   driver, turning its errors into the `fsw-hal` fault types.
 //!
 //! Requests are defined once per `fsw-hal` trait, not per chip: [`GyroRequest`] asks for an angular
 //! rate whichever chip provides it. A service serves the channel of each trait its device provides
