@@ -7,10 +7,8 @@
 //! Traits are grouped by device class, not by app, and every trait states its units and frame:
 //!
 //! - [`sensors`]: [`sensors::Gyro`].
-//! - [`actuators`]: [`actuators::Magnetorquers`].
 #![no_std]
 
-pub mod actuators;
 pub mod sensors;
 
 /// Time delays, from `embedded-hal-async`. Re-exported so apps get every hardware abstraction,
