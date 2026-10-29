@@ -1,22 +1,60 @@
-//! IMU service: owns the [`Bmx160Imu`] and serves gyro reads.
+//! IMU service: the BMX160 as an `fsw-hal` [`Gyro`], the task that owns it, and the client other
+//! tasks read it through.
 //!
 //! ```text
-//! ADCS task                         IMU service task
-//! ─────────                         ────────────────
+//! ADCS task                         IMU service task (run)
+//! ─────────                         ──────────────────────
 //! ImuClient::angular_rate()
 //!   ├─ send AngularRate{tag, slot} ─▶ receive request
 //!   │                                imu.angular_rate().await   (I2C read)
 //!   └─ wait on slot ◀─────────────── slot.signal((tag, result))
 //! ```
+//!
+//! The BMX160 axes are used directly as body axes, so there is no axis remapping here.
 
+use defmt::{error, info};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
-use embassy_time::{Duration, with_timeout};
+use embassy_time::{Delay, Duration, with_timeout};
 use fsw_hal::sensors::Gyro;
 use fsw_hal::{SensorFault, Vec3};
+use fsw_lib::drivers::bmx160::BMX160;
 
 use super::Slot;
-use crate::devices::imu::Bmx160Imu;
+use crate::addresses;
+use crate::i2c_bus::I2c0Device;
+
+// ── Device ──────────────────────────────────────────────────────────────────────────────────────
+
+/// The BMX160 on I2C0.
+pub struct Bmx160Imu {
+    driver: BMX160<I2c0Device>,
+}
+
+impl Bmx160Imu {
+    /// Set up the BMX160 on I2C0 with the flight settings. If it fails to start, the device is
+    /// still returned and every read reports [`SensorFault`], so the task's failure path runs
+    /// instead of the board failing to boot.
+    pub async fn new(i2c: I2c0Device) -> Self {
+        let mut driver = BMX160::new(i2c, addresses::i2c0::IMU);
+        match driver.init(&mut Delay).await {
+            Ok(()) => info!("BMX160 up, mag trim: {}", driver.trim()),
+            Err(e) => error!("BMX160 init failed: {}", e),
+        }
+        Self { driver }
+    }
+}
+
+impl Gyro for Bmx160Imu {
+    async fn angular_rate(&mut self) -> Result<Vec3, SensorFault> {
+        self.driver.gyro().await.map_err(|e| {
+            error!("gyro read failed: {}", e);
+            SensorFault
+        })
+    }
+}
+
+// ── Service task ────────────────────────────────────────────────────────────────────────────────
 
 /// Reply slot for a gyro read.
 pub type RateSlot = Slot<Result<Vec3, SensorFault>>;
@@ -34,7 +72,7 @@ pub type ImuChannel = Channel<CriticalSectionRawMutex, ImuRequest, 4>;
 ///
 /// A binary wraps this in an `#[embassy_executor::task]` (task functions must live where the
 /// concrete types are known) and spawns it on whichever executor the IMU should run on.
-pub async fn imu_service(mut imu: Bmx160Imu, requests: &'static ImuChannel) -> ! {
+pub async fn run(mut imu: Bmx160Imu, requests: &'static ImuChannel) -> ! {
     loop {
         match requests.receive().await {
             ImuRequest::AngularRate { tag, reply } => {
@@ -43,6 +81,8 @@ pub async fn imu_service(mut imu: Bmx160Imu, requests: &'static ImuChannel) -> !
         }
     }
 }
+
+// ── Client ──────────────────────────────────────────────────────────────────────────────────────
 
 /// How long a client waits for a reply before reporting [`SensorFault`]. A gyro read is one short
 /// I2C transfer (well under 1 ms), so this only fires if the service is stuck.

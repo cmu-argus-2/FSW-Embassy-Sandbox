@@ -1,9 +1,11 @@
-//! Device services: one task per device that owns it and serves requests from other tasks.
+//! Device services: one file per device, each with the device and the task that owns it.
 //!
 //! Each service file has three parts:
 //!
-//! - a request enum, sent over the service's channel;
-//! - the service loop, which owns the device and answers each request;
+//! - the device: an `fsw-lib` driver wrapped to implement an `fsw-hal` trait, set up with this
+//!   board's settings;
+//! - the service task: a request enum, sent over the service's channel, and a `run` loop that owns
+//!   the device and answers each request;
 //! - a client, which implements the device's `fsw-hal` trait by sending a request and waiting for
 //!   the reply. Apps take the client in place of the device and do not know the difference.
 //!

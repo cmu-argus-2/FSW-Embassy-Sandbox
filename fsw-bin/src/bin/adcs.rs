@@ -23,9 +23,8 @@ use embassy_time::{Delay, Timer};
 use panic_probe as _;
 
 use fsw_apps::tasks::adcs::AdcsTask;
-use fsw_board::devices::imu::Bmx160Imu;
 use fsw_board::hardware::Hardware;
-use fsw_board::services::imu::{ImuChannel, ImuClient, RateSlot, imu_service};
+use fsw_board::services::imu::{self, Bmx160Imu, ImuChannel, ImuClient, RateSlot};
 
 /// Requests to the IMU service.
 static IMU_REQ: ImuChannel = Channel::new();
@@ -73,7 +72,7 @@ async fn main(spawner: Spawner) {
 
 #[embassy_executor::task]
 async fn imu_task(imu: Bmx160Imu) {
-    imu_service(imu, &IMU_REQ).await
+    imu::run(imu, &IMU_REQ).await
 }
 
 #[embassy_executor::task]
