@@ -4,7 +4,7 @@
 //! vector, modes, control, coils) comes later.
 //!
 //! The task is generic over the `fsw-hal` traits and a delay, so it has no idea which board or chip
-//! it runs on. Embassy `#[task]` functions cannot be generic, so a binary wraps it in a small task
+//! it runs on: the gyro and the magnetometer may be one chip (v4) or two. Embassy `#[task]` functions cannot be generic, so a binary wraps it in a small task
 //! with concrete types.
 
 use fsw_hal::DelayNs;
@@ -26,17 +26,18 @@ pub struct Readings {
     pub mag: Reading,
 }
 
-pub struct AdcsTask<I, D> {
-    /// The gyro and magnetometer (one IMU provides both).
-    imu: I,
+pub struct AdcsTask<G, M, D> {
+    gyro: G,
+    mag: M,
     mag_cal: MagCalibration,
     delay: D,
 }
 
-impl<I: Gyro + Magnetometer, D: DelayNs> AdcsTask<I, D> {
-    pub fn new(imu: I, mag_cal: MagCalibration, delay: D) -> Self {
+impl<G: Gyro, M: Magnetometer, D: DelayNs> AdcsTask<G, M, D> {
+    pub fn new(gyro: G, mag: M, mag_cal: MagCalibration, delay: D) -> Self {
         Self {
-            imu,
+            gyro,
+            mag,
             mag_cal,
             delay,
         }
@@ -44,8 +45,8 @@ impl<I: Gyro + Magnetometer, D: DelayNs> AdcsTask<I, D> {
 
     /// Read and check the gyro and the magnetometer once.
     pub async fn step(&mut self) -> Readings {
-        let gyro = check_gyro(self.imu.angular_rate().await);
-        let mag = check_mag(self.imu.magnetic_field().await, &self.mag_cal);
+        let gyro = check_gyro(self.gyro.angular_rate().await);
+        let mag = check_mag(self.mag.magnetic_field().await, &self.mag_cal);
         Readings { gyro, mag }
     }
 

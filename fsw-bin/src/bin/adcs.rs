@@ -2,11 +2,15 @@
 //! gyro and magnetometer at 1 Hz through the IMU service and logs each reading over USB (defmt).
 //!
 //! ```text
-//! high-priority executor (SWI_IRQ_0)     thread-mode executor
-//! ──────────────────────────────────     ────────────────────
-//! imu_task: owns Bmx160Imu  ◀── IMU_REQ ── adcs_task: AdcsTask<ImuClient, _>
-//!                           ── ADCS_IMU_REPLY ─▶
+//! high-priority executor (SWI_IRQ_0)       thread-mode executor
+//! ──────────────────────────────────       ────────────────────
+//! imu_task: owns Bmx160Imu ◀── GYRO_REQ ── adcs_task: gyro = GyroClient
+//!                          ◀── MAG_REQ ───            mag  = MagClient
+//!                          ── ADCS_GYRO_REPLY / ADCS_MAG_REPLY ─▶
 //! ```
+//!
+//! On v4 one chip serves both channels. On a board with a separate magnetometer, a magnetometer
+//! task would serve `MAG_REQ` instead and nothing else here would change.
 //!
 //! Run with `cargo run --release --bin adcs`, then read the logs with defmt-print.
 
@@ -25,12 +29,17 @@ use panic_probe as _;
 use fsw_apps::adcs::MagCalibration;
 use fsw_apps::tasks::adcs::AdcsTask;
 use fsw_board::hardware::Hardware;
-use fsw_board::services::imu::{self, Bmx160Imu, ImuChannel, ImuClient, VecSlot};
+use fsw_board::services::clients::{GyroClient, MagClient};
+use fsw_board::services::imu::{self, Bmx160Imu};
+use fsw_board::services::{GyroChannel, MagChannel, VecSlot};
 
-/// Requests to the IMU service.
-static IMU_REQ: ImuChannel = Channel::new();
-/// ADCS's reply slot for IMU reads.
-static ADCS_IMU_REPLY: VecSlot = Signal::new();
+/// Angular rate requests, served by the IMU.
+static GYRO_REQ: GyroChannel = Channel::new();
+/// Magnetic field requests, served by the IMU.
+static MAG_REQ: MagChannel = Channel::new();
+/// ADCS's reply slots, one per client.
+static ADCS_GYRO_REPLY: VecSlot = Signal::new();
+static ADCS_MAG_REPLY: VecSlot = Signal::new();
 
 /// Executor for device tasks. It runs from a software interrupt, so its tasks preempt everything on
 /// the thread-mode executor (`main`'s) as soon as they have work.
@@ -56,15 +65,17 @@ async fn main(spawner: Spawner) {
     interrupt::SWI_IRQ_0.set_priority(Priority::P2);
     let high_spawner = EXECUTOR_HIGH.start(interrupt::SWI_IRQ_0);
 
-    // The IMU moves into its service task, which is now its only owner.
+    // The IMU moves into its service task, which is now its only owner. It serves both channels.
     high_spawner.spawn(imu_task(imu)).unwrap();
 
-    // ADCS gets a client instead of the IMU. `AdcsTask` only needs a `Gyro + Magnetometer`, so it
-    // cannot tell the difference.
-    let imu_client = ImuClient::new(&IMU_REQ, &ADCS_IMU_REPLY);
+    // ADCS gets one client per trait. `AdcsTask` only needs a `Gyro` and a `Magnetometer`, so it
+    // cannot tell that both come from the same chip.
+    let gyro = GyroClient::new(&GYRO_REQ, &ADCS_GYRO_REPLY);
+    let mag = MagClient::new(&MAG_REQ, &ADCS_MAG_REPLY);
     spawner
         .spawn(adcs_task(AdcsTask::new(
-            imu_client,
+            gyro,
+            mag,
             MagCalibration::NONE,
             Delay,
         )))
@@ -78,11 +89,11 @@ async fn main(spawner: Spawner) {
 
 #[embassy_executor::task]
 async fn imu_task(imu: Bmx160Imu) {
-    imu::run(imu, &IMU_REQ).await
+    imu::run(imu, &GYRO_REQ, &MAG_REQ).await
 }
 
 #[embassy_executor::task]
-async fn adcs_task(mut task: AdcsTask<ImuClient, Delay>) {
+async fn adcs_task(mut task: AdcsTask<GyroClient, MagClient, Delay>) {
     task.run(|r| {
         // The task keeps the field in T; log it in µT, where Earth's field is about 25-65.
         let mag_ut = r.mag.value.map(|b| b * 1e6);
