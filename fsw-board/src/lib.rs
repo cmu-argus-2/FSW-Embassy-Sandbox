@@ -34,6 +34,7 @@ pub mod hardware;
 pub mod i2c_bus;
 pub mod imu;
 pub mod power;
+pub mod services;
 #[cfg(feature = "usb-log")]
 pub mod usb_log;
 
