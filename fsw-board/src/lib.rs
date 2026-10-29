@@ -10,12 +10,19 @@
 //! `FSW-mainboard/firmware/Mainboard v4/pins.c`. Bus speeds, buffer sizes and device addresses are
 //! taken from `flight/hal/argus_v4.py`.
 //!
+//! The crate falls into two groups:
+//!
+//! - board wiring: the pin map below, [`power`], [`i2c_bus`], [`gpio`] and [`addresses`];
+//! - [`services`]: one file per device, holding the device (a `fsw-lib` driver as a `fsw-hal`
+//!   trait), the task that owns it, and the client other tasks reach it through. The devices are
+//!   brought up together by [`hardware::Hardware`].
+//!
 //! # Usage
 //!
 //! ```ignore
 //! let r = fsw_board::init();
-//! let power = fsw_board::power::BoardPower::up(r.power).await;
-//! let i2c1 = fsw_board::i2c_bus::i2c1(r.i2c1, &power.powered_up);
+//! let Hardware { power, imu } = Hardware::init(r.power, r.i2c0).await;
+//! // move `imu` into the task that owns it; keep `power` alive for the whole program
 //! ```
 //!
 //! Binaries must use [`Irqs`] from this crate rather than declaring their own `bind_interrupts!`
@@ -25,12 +32,12 @@
 use assign_resources::assign_resources;
 use embassy_rp::{Peri, bind_interrupts, i2c, peripherals, uart, usb};
 
-pub mod devices;
+pub mod addresses;
 pub mod gpio;
+pub mod hardware;
 pub mod i2c_bus;
 pub mod power;
-pub mod spi_bus;
-pub mod uart_bus;
+pub mod services;
 #[cfg(feature = "usb-log")]
 pub mod usb_log;
 
