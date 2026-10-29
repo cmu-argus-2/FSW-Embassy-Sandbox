@@ -1,5 +1,5 @@
 //! Runs the ADCS task on mainboard v4 with the IMU behind its own device task: ADCS reads the BMX160
-//! gyro at 1 Hz through the IMU service and logs each reading over USB (defmt).
+//! gyro and magnetometer at 1 Hz through the IMU service and logs each reading over USB (defmt).
 //!
 //! ```text
 //! high-priority executor (SWI_IRQ_0)     thread-mode executor
@@ -22,14 +22,15 @@ use embassy_sync::signal::Signal;
 use embassy_time::{Delay, Timer};
 use panic_probe as _;
 
+use fsw_apps::adcs::MagCalibration;
 use fsw_apps::tasks::adcs::AdcsTask;
 use fsw_board::hardware::Hardware;
-use fsw_board::services::imu::{self, Bmx160Imu, ImuChannel, ImuClient, RateSlot};
+use fsw_board::services::imu::{self, Bmx160Imu, ImuChannel, ImuClient, VecSlot};
 
 /// Requests to the IMU service.
 static IMU_REQ: ImuChannel = Channel::new();
-/// ADCS's reply slot for gyro reads.
-static ADCS_IMU_REPLY: RateSlot = Signal::new();
+/// ADCS's reply slot for IMU reads.
+static ADCS_IMU_REPLY: VecSlot = Signal::new();
 
 /// Executor for device tasks. It runs from a software interrupt, so its tasks preempt everything on
 /// the thread-mode executor (`main`'s) as soon as they have work.
@@ -58,10 +59,15 @@ async fn main(spawner: Spawner) {
     // The IMU moves into its service task, which is now its only owner.
     high_spawner.spawn(imu_task(imu)).unwrap();
 
-    // ADCS gets a client instead of the IMU. `AdcsTask` only needs a `Gyro`, so it is unchanged.
-    let gyro = ImuClient::new(&IMU_REQ, &ADCS_IMU_REPLY);
+    // ADCS gets a client instead of the IMU. `AdcsTask` only needs a `Gyro + Magnetometer`, so it
+    // cannot tell the difference.
+    let imu_client = ImuClient::new(&IMU_REQ, &ADCS_IMU_REPLY);
     spawner
-        .spawn(adcs_task(AdcsTask::new(gyro, Delay)))
+        .spawn(adcs_task(AdcsTask::new(
+            imu_client,
+            MagCalibration::NONE,
+            Delay,
+        )))
         .unwrap();
 
     // `power` holds the power-line enable pins. Dropping it would switch the lines off, so `main`
@@ -77,6 +83,9 @@ async fn imu_task(imu: Bmx160Imu) {
 
 #[embassy_executor::task]
 async fn adcs_task(mut task: AdcsTask<ImuClient, Delay>) {
-    task.run(|r| info!("gyro {} rad/s ({})", r.value, r.status))
-        .await
+    task.run(|r| {
+        info!("gyro {} rad/s ({})", r.gyro.value, r.gyro.status);
+        info!("mag  {} T ({})", r.mag.value, r.mag.status);
+    })
+    .await
 }

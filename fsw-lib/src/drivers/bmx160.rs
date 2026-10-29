@@ -4,10 +4,10 @@ use embedded_hal_async::i2c::I2c;
 /*
  * BMX160 IMU Driver (gyroscope + BMM150 magnetometer)
  *
- * Supports what reading the gyro needs: soft reset, chip ID check, and the init sequence
- * (magnetometer setup, including reading the BMM150 trim, then gyroscope setup).
- * Magnetometer and accelerometer readings are not implemented yet; the accelerometer is
- * left in its post-reset suspend mode.
+ * Supports soft reset, chip ID check, the init sequence (magnetometer setup, including reading
+ * the BMM150 trim, then gyroscope setup), and gyro and magnetometer readings. The magnetometer
+ * reading is compensated with the BMM150 factory trim. Accelerometer readings are not implemented
+ * yet; the accelerometer is left in its post-reset suspend mode.
  */
 
 mod regs {
@@ -44,6 +44,12 @@ const MAG_IF_POLLS: u32 = 10;
 const MAG_IF_POLL_US: u32 = 100;
 
 const DEG_TO_RAD: f32 = core::f32::consts::PI / 180.0;
+
+/// BMM150 raw values that mean the axis overflowed.
+const MAG_OVERFLOW_XY: i16 = -4096;
+const MAG_OVERFLOW_Z: i16 = -16384;
+/// µT per LSB, used only if the trim could not be read.
+const MAG_UNTRIMMED_SCALE: f32 = 1.0 / 16.0;
 
 /// Gyroscope full-scale range. Discriminant is the GYRO_RANGE register value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
@@ -187,6 +193,16 @@ impl<I2C: I2c> BMX160<I2C> {
         Ok(raw.map(|v| v as f32 * self.gyro_scale))
     }
 
+    /// Magnetic field in µT, sensor axes, compensated with the BMM150 factory trim. An axis that
+    /// overflowed reads 0.0.
+    pub async fn mag(&mut self) -> Result<[f32; 3], Error<I2C::Error>> {
+        let mut buf = [0u8; 8];
+        self.read_regs(regs::MAG_DATA, &mut buf).await?;
+        let raw = le_i16x3(&buf[..6]);
+        let rhall = u16::from_le_bytes([buf[6], buf[7]]);
+        Ok(compensate_mag(raw, rhall, &self.trim))
+    }
+
     pub fn trim(&self) -> &MagTrim {
         &self.trim
     }
@@ -282,4 +298,51 @@ fn le_i16x3(b: &[u8]) -> [i16; 3] {
         i16::from_le_bytes([b[2], b[3]]),
         i16::from_le_bytes([b[4], b[5]]),
     ]
+}
+
+/// Turn the raw BMM150 registers into µT with the factory trim (BMM150 datasheet, floating-point
+/// compensation). `raw` is the x/y/z data registers as read, `rhall` the hall resistance register.
+///
+/// If the trim was never read (`xyz1 == 0`), falls back to a flat 1/16 µT per LSB.
+pub fn compensate_mag(raw: [i16; 3], rhall: u16, trim: &MagTrim) -> [f32; 3] {
+    // The data registers are left-aligned: x/y are 13-bit, z 15-bit, rhall 14-bit.
+    let x = raw[0] >> 3;
+    let y = raw[1] >> 3;
+    let z = raw[2] >> 1;
+    let rhall = rhall >> 2;
+
+    if trim.xyz1 == 0 {
+        return [x, y, z].map(|v| v as f32 * MAG_UNTRIMMED_SCALE);
+    }
+    [
+        compensate_xy(x, rhall, trim.x1, trim.x2, trim),
+        compensate_xy(y, rhall, trim.y1, trim.y2, trim),
+        compensate_z(z, rhall, trim),
+    ]
+}
+
+/// X or Y axis: `d1`/`d2` are that axis's `x1`/`x2` or `y1`/`y2` trim.
+fn compensate_xy(adc: i16, rhall: u16, d1: i8, d2: i8, t: &MagTrim) -> f32 {
+    if adc == MAG_OVERFLOW_XY || rhall == 0 {
+        return 0.0;
+    }
+    let p0 = t.xyz1 as f32 * 16384.0 / rhall as f32 - 16384.0;
+    let p1 = t.xy2 as f32 * (p0 * p0 / 268_435_456.0);
+    let p2 = p1 + p0 * t.xy1 as f32 / 16384.0;
+    let p4 = adc as f32 * ((p2 + 256.0) * (d2 as f32 + 160.0));
+    (p4 / 8192.0 + d1 as f32 * 8.0) / 16.0
+}
+
+fn compensate_z(adc: i16, rhall: u16, t: &MagTrim) -> f32 {
+    if adc == MAG_OVERFLOW_Z || t.z1 == 0 || t.z2 == 0 || rhall == 0 {
+        return 0.0;
+    }
+    let p0 = adc as f32 - t.z4 as f32;
+    let p1 = rhall as f32 - t.xyz1 as f32;
+    let p2 = t.z3 as f32 * p1;
+    let p3 = t.z2 as f32 + t.z1 as f32 * rhall as f32 / 32768.0;
+    if p3 == 0.0 {
+        return 0.0;
+    }
+    (p0 * 131_072.0 - p2) / (p3 * 64.0)
 }
