@@ -8,7 +8,7 @@ use fsw_hal::sensors::Gyro;
 use fsw_hal::{SensorFault, Vec3};
 use fsw_lib::drivers::bmx160::BMX160;
 
-use crate::devices;
+use crate::addresses;
 use crate::i2c_bus::I2c0Device;
 
 pub struct Bmx160Imu {
@@ -20,7 +20,7 @@ impl Bmx160Imu {
     /// adapter is still returned and every read reports [`SensorFault`], so the task's failure path
     /// runs instead of the board failing to boot.
     pub async fn new(i2c: I2c0Device) -> Self {
-        let mut driver = BMX160::new(i2c, devices::i2c0::IMU);
+        let mut driver = BMX160::new(i2c, addresses::i2c0::IMU);
         match driver.init(&mut Delay).await {
             Ok(()) => info!("BMX160 up, mag trim: {}", driver.trim()),
             Err(e) => error!("BMX160 init failed: {}", e),

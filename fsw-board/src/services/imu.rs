@@ -16,7 +16,7 @@ use fsw_hal::sensors::Gyro;
 use fsw_hal::{SensorFault, Vec3};
 
 use super::Slot;
-use crate::imu::Bmx160Imu;
+use crate::devices::imu::Bmx160Imu;
 
 /// Reply slot for a gyro read.
 pub type RateSlot = Slot<Result<Vec3, SensorFault>>;

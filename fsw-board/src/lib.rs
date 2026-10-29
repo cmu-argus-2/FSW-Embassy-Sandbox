@@ -10,8 +10,12 @@
 //! `FSW-mainboard/firmware/Mainboard v4/pins.c`. Bus speeds, buffer sizes and device addresses are
 //! taken from `flight/hal/argus_v4.py`.
 //!
-//! It also turns the board's chips into devices: adapters (e.g. [`imu`]) implement the `fsw-hal`
-//! traits on `fsw-lib` drivers, and [`hardware::Hardware`] lists every device and brings them up.
+//! The crate falls into three groups:
+//!
+//! - board wiring: the pin map below, [`power`], [`i2c_bus`], [`gpio`] and [`addresses`];
+//! - [`devices`]: the board's chips as `fsw-hal` traits (adapters on `fsw-lib` drivers), brought up
+//!   together by [`hardware::Hardware`];
+//! - [`services`]: device tasks that own a device and serve requests from other tasks.
 //!
 //! # Usage
 //!
@@ -28,11 +32,11 @@
 use assign_resources::assign_resources;
 use embassy_rp::{Peri, bind_interrupts, i2c, peripherals, uart, usb};
 
+pub mod addresses;
 pub mod devices;
 pub mod gpio;
 pub mod hardware;
 pub mod i2c_bus;
-pub mod imu;
 pub mod power;
 pub mod services;
 #[cfg(feature = "usb-log")]

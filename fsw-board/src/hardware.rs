@@ -5,7 +5,7 @@
 
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 
-use crate::imu::Bmx160Imu;
+use crate::devices::imu::Bmx160Imu;
 use crate::power::BoardPower;
 use crate::{I2c0Pins, PowerPins, i2c_bus};
 

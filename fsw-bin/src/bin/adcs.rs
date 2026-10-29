@@ -23,8 +23,8 @@ use embassy_time::{Delay, Timer};
 use panic_probe as _;
 
 use fsw_apps::tasks::adcs::AdcsTask;
+use fsw_board::devices::imu::Bmx160Imu;
 use fsw_board::hardware::Hardware;
-use fsw_board::imu::Bmx160Imu;
 use fsw_board::services::imu::{ImuChannel, ImuClient, RateSlot, imu_service};
 
 /// Requests to the IMU service.
