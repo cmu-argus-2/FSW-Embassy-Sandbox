@@ -84,8 +84,19 @@ async fn imu_task(imu: Bmx160Imu) {
 #[embassy_executor::task]
 async fn adcs_task(mut task: AdcsTask<ImuClient, Delay>) {
     task.run(|r| {
-        info!("gyro {} rad/s ({})", r.gyro.value, r.gyro.status);
-        info!("mag  {} T ({})", r.mag.value, r.mag.status);
+        // The task keeps the field in T; log it in µT, where Earth's field is about 25-65.
+        let mag_ut = r.mag.value.map(|b| b * 1e6);
+        info!(
+            "gyro [{=f32}, {=f32}, {=f32}] rad/s ({}) | mag [{=f32}, {=f32}, {=f32}] uT ({})",
+            r.gyro.value[0],
+            r.gyro.value[1],
+            r.gyro.value[2],
+            r.gyro.status,
+            mag_ut[0],
+            mag_ut[1],
+            mag_ut[2],
+            r.mag.status,
+        );
     })
     .await
 }
