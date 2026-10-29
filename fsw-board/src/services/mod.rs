@@ -12,27 +12,75 @@
 //! serves which channel. Apps reach a service through the matching client in [`clients`], which
 //! implements the trait, so they never see the messages.
 //!
-//! Replies go into a [`Slot`] the client passes in with each request, not into a shared inbox, so a
-//! reply can only reach the request that asked for it and the service never waits on a client.
+//! Replies go into the requesting task's [`ReplySlot`], passed in with each request. A task needs
+//! only one slot, shared by all its clients, because it waits for each reply before sending its
+//! next request; the service writes into it without waiting, so it never blocks on a slow task.
 
 pub mod clients;
 pub mod imu;
+
+use core::sync::atomic::{AtomicU32, Ordering};
 
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_sync::signal::Signal;
 use fsw_hal::{SensorFault, Vec3};
 
-/// Where a service writes its reply: the value, tagged with the request it answers.
+/// Where services write their replies to one task: the value, tagged with the request it answers.
 ///
-/// The tag lets a client drop a late reply to an earlier request that timed out. A `Signal` holds
-/// only the latest value, and `signal` overwrites it without waiting, so the service never blocks
-/// on a slow client. `CriticalSectionRawMutex` because the service and its clients may run on
-/// different executors.
-pub type Slot<T> = Signal<CriticalSectionRawMutex, (u32, T)>;
+/// One per task, shared by all of that task's clients. The task must send one request at a time
+/// (each client call finishes before the next starts), which is how a task's sequential code works
+/// anyway; two calls running at once (e.g. with `join`) would wait on the same slot.
+///
+/// The tag lets a client drop a late reply to an earlier request that timed out. Tags come from
+/// the slot, not the client, so they are unique across every client sharing it: a late gyro reply
+/// can never be taken as the answer to a magnetometer request. A `Signal` holds only the latest
+/// value, and writing overwrites it without waiting, so a service never blocks on a slow task.
+/// `CriticalSectionRawMutex` because the service and the task may run on different executors.
+pub struct ReplySlot<T> {
+    signal: Signal<CriticalSectionRawMutex, (u32, T)>,
+    next_tag: AtomicU32,
+}
 
-/// Reply slot for a vector reading (angular rate, magnetic field).
-pub type VecSlot = Slot<Result<Vec3, SensorFault>>;
+impl<T: Send> ReplySlot<T> {
+    pub const fn new() -> Self {
+        Self {
+            signal: Signal::new(),
+            next_tag: AtomicU32::new(0),
+        }
+    }
+
+    /// Write the reply to the request with this tag (called by services).
+    pub fn reply(&self, tag: u32, value: T) {
+        self.signal.signal((tag, value));
+    }
+
+    /// A tag for a new request, different from the last 2^32 handed out.
+    fn new_tag(&self) -> u32 {
+        self.next_tag
+            .fetch_add(1, Ordering::Relaxed)
+            .wrapping_add(1)
+    }
+
+    /// Wait for the reply to the request with this tag, dropping late replies to earlier ones.
+    async fn wait_for(&self, tag: u32) -> T {
+        loop {
+            let (t, value) = self.signal.wait().await;
+            if t == tag {
+                return value;
+            }
+        }
+    }
+}
+
+impl<T: Send> Default for ReplySlot<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Reply slot for vector readings (angular rate, magnetic field).
+pub type VecSlot = ReplySlot<Result<Vec3, SensorFault>>;
 
 /// Requests waiting for a service. Room for one request per client is enough, since a client waits
 /// for each reply before sending again.

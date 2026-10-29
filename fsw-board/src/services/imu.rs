@@ -53,14 +53,14 @@ pub async fn run(mut imu: Imu, gyro: &'static GyroChannel, mag: &'static MagChan
                     error!("gyro read failed: {}", e);
                     SensorFault
                 });
-                reply.signal((tag, result));
+                reply.reply(tag, result);
             }
             Either::Second(MagRequest { tag, reply }) => {
                 let result = imu.mag().await.map_err(|e| {
                     error!("mag read failed: {}", e);
                     SensorFault
                 });
-                reply.signal((tag, result));
+                reply.reply(tag, result);
             }
         }
     }

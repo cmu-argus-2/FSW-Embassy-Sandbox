@@ -2,7 +2,8 @@
 //! channel and waiting for the reply.
 //!
 //! One client per trait, shared by every service: a [`GyroClient`] works the same whether the
-//! angular rate comes from the v4 IMU or a different chip. Each client needs its own reply slot.
+//! angular rate comes from the v4 IMU or a different chip. All clients of one task share that
+//! task's [`ReplySlot`](super::ReplySlot).
 
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
@@ -20,24 +21,19 @@ pub const REPLY_TIMEOUT: Duration = Duration::from_millis(20);
 pub struct GyroClient {
     requests: &'static GyroChannel,
     reply: &'static VecSlot,
-    /// Tag of the last request sent; replies with any other tag are stale.
-    tag: u32,
 }
 
 impl GyroClient {
     pub const fn new(requests: &'static GyroChannel, reply: &'static VecSlot) -> Self {
-        Self {
-            requests,
-            reply,
-            tag: 0,
-        }
+        Self { requests, reply }
     }
 }
 
 impl Gyro for GyroClient {
     async fn angular_rate(&mut self) -> Result<Vec3, SensorFault> {
-        call(self.requests, self.reply, &mut self.tag, |tag, reply| {
-            GyroRequest { tag, reply }
+        call(self.requests, self.reply, |tag, reply| GyroRequest {
+            tag,
+            reply,
         })
         .await
     }
@@ -47,51 +43,33 @@ impl Gyro for GyroClient {
 pub struct MagClient {
     requests: &'static MagChannel,
     reply: &'static VecSlot,
-    /// Tag of the last request sent; replies with any other tag are stale.
-    tag: u32,
 }
 
 impl MagClient {
     pub const fn new(requests: &'static MagChannel, reply: &'static VecSlot) -> Self {
-        Self {
-            requests,
-            reply,
-            tag: 0,
-        }
+        Self { requests, reply }
     }
 }
 
 impl Magnetometer for MagClient {
     async fn magnetic_field(&mut self) -> Result<Vec3, SensorFault> {
-        call(self.requests, self.reply, &mut self.tag, |tag, reply| {
-            MagRequest { tag, reply }
+        call(self.requests, self.reply, |tag, reply| MagRequest {
+            tag,
+            reply,
         })
         .await
     }
 }
 
-/// Send one request (built by `request` from a new tag and the reply slot) and wait for its reply,
-/// skipping any late reply to an earlier request.
+/// Send one request (built by `request` from a new tag and the reply slot) and wait for its reply.
 async fn call<R>(
     requests: &'static Channel<CriticalSectionRawMutex, R, QUEUE_DEPTH>,
     reply: &'static VecSlot,
-    tag: &mut u32,
     request: impl FnOnce(u32, &'static VecSlot) -> R,
 ) -> Result<Vec3, SensorFault> {
-    *tag = tag.wrapping_add(1);
-    let tag = *tag;
-
+    let tag = reply.new_tag();
     requests.send(request(tag, reply)).await;
-
-    let wait = async {
-        loop {
-            let (t, result) = reply.wait().await;
-            if t == tag {
-                return result;
-            }
-        }
-    };
-    with_timeout(REPLY_TIMEOUT, wait)
+    with_timeout(REPLY_TIMEOUT, reply.wait_for(tag))
         .await
         .unwrap_or(Err(SensorFault))
 }
