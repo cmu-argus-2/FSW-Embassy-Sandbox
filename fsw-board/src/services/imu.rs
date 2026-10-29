@@ -5,9 +5,9 @@
 //! ADCS task                          IMU service task (run)
 //! ─────────                          ──────────────────────
 //! GyroClient::angular_rate()
-//!   ├─ send GyroRequest{tag, slot} ─▶ receive from GYRO channel
+//!   ├─ send GyroRequest{slot} ──────▶ receive from GYRO channel
 //!   │                                 imu.gyro().await           (I2C read)
-//!   └─ wait on slot ◀──────────────── slot.signal((tag, result))
+//!   └─ wait on slot ◀──────────────── slot.signal(result)
 //! ```
 //!
 //! The BMX160 axes are used directly as body axes, so there is no axis remapping here.
@@ -48,19 +48,19 @@ pub async fn init(i2c: I2c0Device) -> Imu {
 pub async fn run(mut imu: Imu, gyro: &'static GyroChannel, mag: &'static MagChannel) -> ! {
     loop {
         match select(gyro.receive(), mag.receive()).await {
-            Either::First(GyroRequest { tag, reply }) => {
+            Either::First(GyroRequest { reply }) => {
                 let result = imu.gyro().await.map_err(|e| {
                     error!("gyro read failed: {}", e);
                     SensorFault
                 });
-                reply.reply(tag, result);
+                reply.signal(result);
             }
-            Either::Second(MagRequest { tag, reply }) => {
+            Either::Second(MagRequest { reply }) => {
                 let result = imu.mag().await.map_err(|e| {
                     error!("mag read failed: {}", e);
                     SensorFault
                 });
-                reply.reply(tag, result);
+                reply.signal(result);
             }
         }
     }

@@ -7,15 +7,10 @@
 
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
-use embassy_time::{Duration, with_timeout};
 use fsw_hal::sensors::{Gyro, Magnetometer};
 use fsw_hal::{SensorFault, Vec3};
 
 use super::{GyroChannel, GyroRequest, MagChannel, MagRequest, QUEUE_DEPTH, VecSlot};
-
-/// How long a client waits for a reply before reporting [`SensorFault`]. A read is one short I2C
-/// transfer (well under 1 ms), so this only fires if the service is stuck.
-pub const REPLY_TIMEOUT: Duration = Duration::from_millis(20);
 
 /// A [`Gyro`] that reads through whichever service serves the gyro channel.
 pub struct GyroClient {
@@ -31,11 +26,7 @@ impl GyroClient {
 
 impl Gyro for GyroClient {
     async fn angular_rate(&mut self) -> Result<Vec3, SensorFault> {
-        call(self.requests, self.reply, |tag, reply| GyroRequest {
-            tag,
-            reply,
-        })
-        .await
+        call(self.requests, self.reply, GyroRequest { reply: self.reply }).await
     }
 }
 
@@ -53,23 +44,16 @@ impl MagClient {
 
 impl Magnetometer for MagClient {
     async fn magnetic_field(&mut self) -> Result<Vec3, SensorFault> {
-        call(self.requests, self.reply, |tag, reply| MagRequest {
-            tag,
-            reply,
-        })
-        .await
+        call(self.requests, self.reply, MagRequest { reply: self.reply }).await
     }
 }
 
-/// Send one request (built by `request` from a new tag and the reply slot) and wait for its reply.
+/// Send one request and wait for its reply.
 async fn call<R>(
     requests: &'static Channel<CriticalSectionRawMutex, R, QUEUE_DEPTH>,
     reply: &'static VecSlot,
-    request: impl FnOnce(u32, &'static VecSlot) -> R,
+    request: R,
 ) -> Result<Vec3, SensorFault> {
-    let tag = reply.new_tag();
-    requests.send(request(tag, reply)).await;
-    with_timeout(REPLY_TIMEOUT, reply.wait_for(tag))
-        .await
-        .unwrap_or(Err(SensorFault))
+    requests.send(request).await;
+    reply.wait().await
 }

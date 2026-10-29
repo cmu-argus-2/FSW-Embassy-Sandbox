@@ -22,6 +22,7 @@ use embassy_executor::{InterruptExecutor, Spawner};
 use embassy_rp::interrupt;
 use embassy_rp::interrupt::{InterruptExt, Priority};
 use embassy_sync::channel::Channel;
+use embassy_sync::signal::Signal;
 use embassy_time::{Delay, Timer};
 use panic_probe as _;
 
@@ -30,7 +31,7 @@ use fsw_apps::tasks::adcs::AdcsTask;
 use fsw_board::hardware::Hardware;
 use fsw_board::services::clients::{GyroClient, MagClient};
 use fsw_board::services::imu::{self, Imu};
-use fsw_board::services::{GyroChannel, MagChannel, ReplySlot, VecSlot};
+use fsw_board::services::{GyroChannel, MagChannel, VecSlot};
 
 /// Angular rate requests, served by the IMU.
 static GYRO_REQ: GyroChannel = Channel::new();
@@ -38,7 +39,7 @@ static GYRO_REQ: GyroChannel = Channel::new();
 static MAG_REQ: MagChannel = Channel::new();
 /// ADCS's reply slot, shared by its gyro and magnetometer clients: ADCS waits for each reply
 /// before sending its next request.
-static ADCS_REPLY: VecSlot = ReplySlot::new();
+static ADCS_REPLY: VecSlot = Signal::new();
 
 /// Executor for device tasks. It runs from a software interrupt, so its tasks preempt everything on
 /// the thread-mode executor (`main`'s) as soon as they have work.
