@@ -20,19 +20,22 @@ use crate::i2c_bus::I2c1Device;
 
 // ── Device ──────────────────────────────────────────────────────────────────────────────────────
 
-/// An ADM1176 on I2C1.
-pub type Monitor = ADM1176<I2c1Device>;
+/// An ADM1176 on I2C1, with its address for log messages (the driver keeps its own private).
+pub struct Monitor {
+    driver: ADM1176<I2c1Device>,
+    addr: u8,
+}
 
 /// Set up the ADM1176 at `addr` on I2C1 to convert voltage and current continuously. If that
 /// fails, the driver is still returned and the task's reads report [`SensorFault`] for as long as
 /// the device does not answer, so the board still boots.
 pub async fn init(i2c: I2c1Device, addr: u8) -> Monitor {
-    let mut monitor = ADM1176::new(i2c, addr);
-    match monitor.config(&["V_CONT", "I_CONT"]).await {
+    let mut driver = ADM1176::new(i2c, addr);
+    match driver.config(&["V_CONT", "I_CONT"]).await {
         Ok(()) => info!("ADM1176 {=u8:#x} up", addr),
         Err(e) => error!("ADM1176 {=u8:#x} init failed: {}", addr, e),
     }
-    monitor
+    Monitor { driver, addr }
 }
 
 // ── Service task ────────────────────────────────────────────────────────────────────────────────
@@ -45,11 +48,12 @@ pub async fn run(mut monitor: Monitor, requests: &'static PowerChannel) -> ! {
     loop {
         let PowerRequest { reply } = requests.receive().await;
         let result = monitor
+            .driver
             .read_voltage_current()
             .await
             .map(|(voltage, current)| PowerReading { voltage, current })
             .map_err(|e| {
-                error!("power monitor read failed: {}", e);
+                error!("ADM1176 {=u8:#x} read failed: {}", monitor.addr, e);
                 SensorFault
             });
         reply.signal(result);
