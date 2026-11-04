@@ -118,3 +118,23 @@ async fn lost_power_reports_either_flag() {
         i2c.done();
     }
 }
+
+#[tokio::test]
+async fn temperature_reads_twos_complement_sixteenths_of_a_degree() {
+    // (0x0E with TEMP[3:0] in the top nibble, 0x0F holding TEMP[11:4], expected C)
+    let cases: [(u8, u8, f32); 4] = [
+        (0x80, 0x19, 25.5),
+        (0x00, 0x00, 0.0),
+        (0x00, 0xFF, -1.0),
+        (0x00, 0xF6, -10.0),
+    ];
+    for (lsb, msb, expected) in cases {
+        let mut i2c = I2cMock::new(&[I2cTransaction::write_read(ADDR, vec![0x0E], vec![lsb, msb])]);
+        let temp = RV3032::new(&mut i2c, ADDR).temperature().await.unwrap();
+        assert!(
+            (temp - expected).abs() <= 1e-4,
+            "lsb {lsb:#04X} msb {msb:#04X}: got {temp}, want {expected}"
+        );
+        i2c.done();
+    }
+}
