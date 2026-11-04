@@ -6,7 +6,8 @@
 //!
 //! Traits are grouped by device class, not by app, and every trait states its units and frame:
 //!
-//! - [`sensors`]: [`sensors::Gyro`].
+//! - [`sensors`]: [`sensors::Gyro`], [`sensors::Magnetometer`], [`sensors::PowerMonitor`],
+//!   [`sensors::FuelGauge`].
 #![no_std]
 
 pub mod sensors;
