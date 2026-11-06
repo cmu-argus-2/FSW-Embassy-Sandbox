@@ -8,6 +8,8 @@ publish = false
 
 [dependencies]
 fsw-lib = {workspace = true}
+fsw-apps = {workspace = true, features = ["defmt"]}
+fsw-board = {workspace = true, features = ["usb-log"]}
 
 embassy-embedded-hal = { version = "0.5.0", features = ["defmt"] }
 embassy-sync = { version = "0.7.2", features = ["defmt"] }

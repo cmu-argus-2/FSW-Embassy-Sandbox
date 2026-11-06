@@ -1,0 +1,18 @@
+[package]
+name = "fsw-apps"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Argus mission logic: app logic and task loops. Reaches hardware only through fsw-hal."
+
+# Depend only on fsw-hal for hardware: never fsw-lib, fsw-board or embassy-rp. That keeps apps from
+# touching hardware directly and lets them build on the host for tests.
+[features]
+default = []
+# defmt::Format on app types, for binaries that log them.
+defmt = ["dep:defmt"]
+
+[dependencies]
+fsw-hal = {workspace = true}
+defmt = { version = "1.0.1", optional = true }
