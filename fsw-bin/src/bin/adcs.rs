@@ -60,7 +60,7 @@ async fn main(spawner: Spawner) {
     // Give the host time to open the USB serial port before logging.
     Timer::after_secs(3).await;
 
-    let Hardware { power, imu } = Hardware::init(r.power, r.i2c0).await;
+    let Hardware { power, imu, .. } = Hardware::init(r.power, r.i2c0, r.i2c1).await;
 
     interrupt::SWI_IRQ_0.set_priority(Priority::P2);
     let high_spawner = EXECUTOR_HIGH.start(interrupt::SWI_IRQ_0);

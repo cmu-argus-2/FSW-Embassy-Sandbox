@@ -15,13 +15,18 @@
 //! Replies go into the requesting task's [`ReplySlot`], passed in with each request. A task needs
 //! only one slot, shared by all its clients, because it waits for each reply before sending its
 //! next request; the service writes into it without waiting, so it never blocks on a slow task.
+//! Slots hold one reply type, so a task whose clients get different replies (EPS: rail power and
+//! battery state) has one slot per reply type.
 
 pub mod clients;
+pub mod fuel_gauge;
 pub mod imu;
+pub mod power_monitor;
 
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_sync::signal::Signal;
+use fsw_hal::sensors::{BatteryReading, PowerReading};
 use fsw_hal::{SensorFault, Vec3};
 
 /// Where services write their replies to one task. One per task, shared by all of that task's
@@ -34,6 +39,12 @@ pub type ReplySlot<T> = Signal<CriticalSectionRawMutex, T>;
 
 /// Reply slot for vector readings (angular rate, magnetic field).
 pub type VecSlot = ReplySlot<Result<Vec3, SensorFault>>;
+
+/// Reply slot for power rail readings.
+pub type PowerSlot = ReplySlot<Result<PowerReading, SensorFault>>;
+
+/// Reply slot for battery readings.
+pub type BatterySlot = ReplySlot<Result<BatteryReading, SensorFault>>;
 
 /// Requests waiting for a service. Room for one request per client is enough, since a client waits
 /// for each reply before sending again.
@@ -49,5 +60,19 @@ pub struct MagRequest {
     pub reply: &'static VecSlot,
 }
 
+/// Ask for a rail's voltage and current ([`fsw_hal::sensors::PowerMonitor`]), replied to in
+/// `reply`.
+pub struct PowerRequest {
+    pub reply: &'static PowerSlot,
+}
+
+/// Ask for the battery state ([`fsw_hal::sensors::FuelGauge`]), replied to in `reply`.
+pub struct BatteryRequest {
+    pub reply: &'static BatterySlot,
+}
+
 pub type GyroChannel = Channel<CriticalSectionRawMutex, GyroRequest, QUEUE_DEPTH>;
 pub type MagChannel = Channel<CriticalSectionRawMutex, MagRequest, QUEUE_DEPTH>;
+/// One per rail: each power monitor serves its own channel.
+pub type PowerChannel = Channel<CriticalSectionRawMutex, PowerRequest, QUEUE_DEPTH>;
+pub type BatteryChannel = Channel<CriticalSectionRawMutex, BatteryRequest, QUEUE_DEPTH>;
