@@ -17,14 +17,10 @@ use embassy_time::Timer;
 use panic_probe as _;
 use static_cell::StaticCell;
 
-use vl53l4cd_ulp::Error;
-use vl53l4cd_ulp::VL53L4cd;
-
 use rtt_target::rtt_init_print;
 
 //use package name given in Cargo.toml
 use fsw_lib::drivers::adm1176::ADM1176 as adm1176;
-use fsw_lib::drivers::vl53l4cd::VL53L4CD;
 
 type I2c0Bus = Mutex<NoopRawMutex, I2c<'static, I2C0, i2c::Async>>;
 type I2c1Bus = Mutex<NoopRawMutex, I2c<'static, I2C1, i2c::Async>>;
@@ -69,7 +65,7 @@ async fn main(spawner: Spawner) {
     let _i2c0_bus = I2C0_BUS.init(Mutex::new(i2c0));
 
     //spawn adm1176 driver task
-    spawner.spawn(i2c_task_a(i2c_bus));
+    spawner.spawn(adm1176_task(i2c1_bus));
 
     loop {
         info!("looping...");
