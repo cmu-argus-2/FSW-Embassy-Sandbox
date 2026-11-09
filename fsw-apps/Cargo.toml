@@ -16,3 +16,7 @@ defmt = ["dep:defmt"]
 [dependencies]
 fsw-hal = {workspace = true}
 defmt = { version = "1.0.1", optional = true }
+
+[dev-dependencies]
+# block_on, to run the async task loops in host tests.
+embassy-futures = "0.1.2"

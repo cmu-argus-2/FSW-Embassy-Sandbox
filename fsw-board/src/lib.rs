@@ -21,7 +21,7 @@
 //!
 //! ```ignore
 //! let r = fsw_board::init();
-//! let Hardware { power, imu } = Hardware::init(r.power, r.i2c0).await;
+//! let Hardware { power, imu, .. } = Hardware::init(r.power, r.i2c0, r.i2c1).await;
 //! // move `imu` into the task that owns it; keep `power` alive for the whole program
 //! ```
 //!
