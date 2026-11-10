@@ -20,6 +20,23 @@ Run the script from `fsw-bin` with the ELF matching the flashed firmware. It req
 
 The USB backend normally waits for its buffer to fill. `test_drivers.rs` calls `defmt::flush()` every 250 ms from a concurrent loop so sparse logs can be sent without filler messages. With this backend, flushing schedules bytes for the USB task; it does not wait for the host. The backend also polls every 100 ms, so expect roughly subsecond output with a connected reader, rather than guaranteed real-time delivery. Other binaries need the same flush loop to benefit.
 
+## RAM usage
+
+RAM in use is static RAM plus the stack's high-water mark (there is no heap).
+
+Static RAM is read from the ELF, no board needed:
+```
+./mem.sh eps
+```
+It prints the `.data`/`.bss` totals, each embassy task's storage (its `POOL`) and the largest statics. A binary name resolves to the release build.
+
+The stack peak is only known at runtime. A binary that calls `fsw_board::stack::paint()` first thing in `main` can report `fsw_board::stack::peak()`; `eps` logs `BENCH` rows for both every 10 s:
+```
+cargo run --release --bin eps
+./log.sh ../target/thumbv8m.main-none-eabihf/release/eps | grep BENCH
+```
+The peak only grows, so let it run through a few fuel gauge reads (every 5 s) and take the last report.
+
 ## Examples
 
 Reference [embassy.dev](https://embassy.dev/) for documentation and examples.

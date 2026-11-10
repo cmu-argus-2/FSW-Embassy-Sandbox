@@ -21,6 +21,7 @@ embassy-time = { version = "0.5.0", features = ["defmt"] }
 embassy-embedded-hal = { version = "0.5.0", features = ["defmt"] }
 embassy-futures = "0.1.2"
 static_cell = "2.1"
+cortex-m = "0.7.6"
 defmt = "1.0.1"
 assign-resources = { git = "https://github.com/adamgreig/assign-resources", rev = "bd22cb7a92031fb16f74a5da42469d466c33383e" }
 

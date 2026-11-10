@@ -14,6 +14,9 @@
 //!                             ── EPS_BATTERY_REPLY ─▶
 //! ```
 //!
+//! RAM use is reported every 10 s as `BENCH` rows: static RAM, the stack's high-water mark and their
+//! sum (see `fsw_board::stack`). Filter them with `grep BENCH`.
+//!
 //! Run with `cargo run --release --bin eps`, then read the logs with defmt-print.
 
 #![no_std]
@@ -35,6 +38,11 @@ use fsw_board::services::clients::{FuelGaugeClient, PowerMonitorClient};
 use fsw_board::services::fuel_gauge::{self, Gauge};
 use fsw_board::services::power_monitor::{self, Monitor};
 use fsw_board::services::{BatteryChannel, BatterySlot, PowerChannel, PowerSlot};
+use fsw_board::stack;
+use fsw_lib::bench::PORT;
+
+/// How often RAM use is reported.
+const RAM_REPORT_SECS: u64 = 10;
 
 /// Power requests, one channel per rail, each served by that rail's monitor.
 static BOARD_PWR_REQ: PowerChannel = Channel::new();
@@ -58,11 +66,15 @@ unsafe fn SWI_IRQ_0() {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
+    // First, so the high-water mark covers everything after it.
+    stack::paint();
+
     let r = fsw_board::init();
 
     spawner
         .spawn(fsw_board::usb_log::usb_logger(r.usb))
         .unwrap();
+    spawner.spawn(ram_task()).unwrap();
     // Give the host time to open the USB serial port before logging.
     Timer::after_secs(3).await;
 
@@ -118,6 +130,45 @@ async fn power_monitor_task(monitor: Monitor, requests: &'static PowerChannel) {
 #[embassy_executor::task]
 async fn fuel_gauge_task(gauge: Gauge) {
     fuel_gauge::run(gauge, &BATTERY_REQ).await
+}
+
+/// Report RAM use: static RAM (fixed), the stack's high-water mark so far, and their sum. The
+/// stack peak only grows, so the last report of a run is the run's peak.
+#[embassy_executor::task]
+async fn ram_task() {
+    let static_ram = stack::static_ram();
+    loop {
+        Timer::after_secs(RAM_REPORT_SECS).await;
+        let peak = stack::peak();
+        info!(
+            "BENCH,{=str},memory,static_ram,eps,total,{=usize},B,1",
+            PORT, static_ram
+        );
+        info!(
+            "BENCH,{=str},memory,stack_peak,eps,max,{=usize},B,1",
+            PORT, peak
+        );
+        info!(
+            "BENCH,{=str},memory,ram_used,eps,max,{=usize},B,1",
+            PORT,
+            static_ram + peak
+        );
+        info!(
+            "BENCH,{=str},memory,ram_used,eps,max,{=f32},%,1",
+            PORT,
+            stack::percent_of_ram(static_ram + peak)
+        );
+        info!(
+            "RAM: {=usize} B static ({=f32} %) + {=usize} B stack peak ({=f32} %) = {=usize} B, {=f32} % of {=usize} KiB",
+            static_ram,
+            stack::percent_of_ram(static_ram),
+            peak,
+            stack::percent_of_ram(peak),
+            static_ram + peak,
+            stack::percent_of_ram(static_ram + peak),
+            stack::ram_size() / 1024
+        );
+    }
 }
 
 #[embassy_executor::task]

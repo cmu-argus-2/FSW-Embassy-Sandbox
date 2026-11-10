@@ -17,6 +17,8 @@
 //!   trait), the task that owns it, and the client other tasks reach it through. The devices are
 //!   brought up together by [`hardware::Hardware`].
 //!
+//! [`stack`] measures RAM use (static RAM and the stack's high-water mark) for bench binaries.
+//!
 //! # Usage
 //!
 //! ```ignore
@@ -38,6 +40,7 @@ pub mod hardware;
 pub mod i2c_bus;
 pub mod power;
 pub mod services;
+pub mod stack;
 #[cfg(feature = "usb-log")]
 pub mod usb_log;
 
