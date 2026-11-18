@@ -16,12 +16,19 @@ pub struct Watchdog {
 }
 
 impl Watchdog {
+    /// With `enabled`, the watchdog is kicked before its reset output is connected, as
+    /// `tasks/watchdog.py` does: the watchdog runs from power-up whatever `WDT_EN` says, so
+    /// connecting it first could let a timeout that started at power-up reset the MCU.
     pub fn new(r: WatchdogPins, enabled: bool) -> Self {
-        let level = if enabled { Level::High } else { Level::Low };
-        Self {
-            enable: Output::new(r.enable, level),
+        let mut watchdog = Self {
+            enable: Output::new(r.enable, Level::Low),
             wdi: Output::new(r.wdi, Level::Low),
+        };
+        if enabled {
+            watchdog.kick();
+            watchdog.set_enabled(true);
         }
+        watchdog
     }
 
     /// Service the watchdog: pulse `WDI` low then high, as the Python watchdog task does.
@@ -41,6 +48,20 @@ impl Watchdog {
 
     pub fn is_enabled(&self) -> bool {
         self.enable.is_set_high()
+    }
+}
+
+impl fsw_hal::watchdog::Watchdog for Watchdog {
+    fn kick(&mut self) {
+        Watchdog::kick(self)
+    }
+
+    fn set_enabled(&mut self, enabled: bool) {
+        Watchdog::set_enabled(self, enabled)
+    }
+
+    fn is_enabled(&self) -> bool {
+        Watchdog::is_enabled(self)
     }
 }
 
