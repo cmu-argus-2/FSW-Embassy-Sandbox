@@ -1,0 +1,12 @@
+[package]
+name = "fsw-hal"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Argus hardware abstraction layer: the traits apps use to reach hardware, implemented by fsw-board for each mainboard."
+
+# Traits and plain types only. No drivers, no board code, no embassy-rp, so this builds anywhere
+# (host tests, RP2350, ground tools). Same idea as embedded-hal, one level up.
+[dependencies]
+embedded-hal-async = "1.0"
