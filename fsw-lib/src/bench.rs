@@ -32,7 +32,7 @@ const BUCKETS: usize = 64;
 ///
 /// Samples beyond the last bucket (`BUCKETS * bucket_us`) still count, and a
 /// percentile that lands in that overflow bucket reports the exact `max` rather
-/// than the bucket bound, so a percentile can never read lower than the maximum.
+/// than the bucket bound, so the histogram saturating can never hide the worst case.
 #[derive(Debug)]
 pub struct Stats {
     count: u32,
