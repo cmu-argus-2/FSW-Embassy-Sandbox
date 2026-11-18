@@ -70,7 +70,7 @@ fn one_slow_sample_moves_p99_and_max_but_not_the_median() {
 }
 
 #[test]
-fn no_percentile_can_read_below_the_maximum_sample() {
+fn samples_past_the_last_bucket_report_the_exact_max() {
     // 64 buckets of 10us cover 0..640us, so this sample lands in the overflow bucket.
     // Reporting the bucket bound there would claim a p100 of 640us against a 10ms
     // maximum, which would be indefensible in a comparison.
