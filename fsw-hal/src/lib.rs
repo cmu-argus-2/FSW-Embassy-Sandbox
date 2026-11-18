@@ -8,9 +8,11 @@
 //!
 //! - [`sensors`]: [`sensors::Gyro`], [`sensors::Magnetometer`], [`sensors::PowerMonitor`],
 //!   [`sensors::FuelGauge`].
+//! - [`watchdog`]: [`watchdog::Watchdog`].
 #![no_std]
 
 pub mod sensors;
+pub mod watchdog;
 
 /// Time delays, from `embedded-hal-async`. Re-exported so apps get every hardware abstraction,
 /// timing included, from this crate.
